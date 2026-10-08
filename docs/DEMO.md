@@ -19,6 +19,28 @@ correct behaviour and worth saying out loud in the video: **the page does not fa
 v1's numbers to look complete.** Use `#report&sample` to show the report format, and the amber
 banner makes the distinction unmissable.
 
+## Reproduce a report from public chain state (no wallet, no account, no key)
+
+```bash
+# v2 ledger, when one is deployed
+pnpm --filter @gotit/contract verify:chain -- \
+  --address <v2Address> --categories engineering,sales,operations,management
+```
+
+Prints the Art. 9 report the live app produces, read straight from the Preprod indexer. This
+is the thing a third party does to check a filing, and it needs nothing but the contract
+address: no wallet, no issuer key, no proof server. The report engine is pure, so re-running
+it on public state reproduces the published numbers exactly.
+
+Point it at the Wave 1 contract and it says so plainly — that ledger predates the Art. 9
+dimensions and cannot produce this report.
+
+45 tests in `packages/contract/src/chainRead.test.ts` run this chain-to-report path against the
+**generated contract**: submit through the circuits, decode the state, shape it, build the
+report. That is the coverage that was missing — every other report test fed the engine
+hand-built histograms, so a mismatch between how the ledger stores counts and how the report
+reads them was invisible.
+
 ## The report engine with no chain at all
 
 ```bash

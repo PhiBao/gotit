@@ -224,7 +224,7 @@ Deploy your own instance: `fly deploy -c fly.issuer.toml` then `fly deploy -c fl
 | Piece | State |
 |---|---|
 | Compact contract v1 (0.31.1 / lang 0.23) | **Live on Preprod** — 5 circuits `submit`, `enroll`, `nextEpoch`, `getHistogram`, `readEpoch`. Frozen: its `candor:*` hash domains are inputs to a live deployment, so they cannot change. |
-| Off-chain circuit tests | **34 passing** against the generated contract, across both ledgers. 13 cover v1 (happy path, double-submit, non-member, bad bucket, histogram-not-sum leak); 21 cover v2, six of which exist only to hold the anonymity gate down |
+| Off-chain circuit tests | **45 passing** against the generated contract, across both ledgers. 13 cover v1 (happy path, double-submit, non-member, bad bucket, histogram-not-sum leak); 21 cover v2, six of which exist only to hold the anonymity gate down. 11 more run the whole chain-to-report path through the generated contract |
 | Report engine (`paygap.ts`) | **38 tests passing** — Art. 9 statistics, interval arithmetic, two-sided suppression |
 | Report + verification pages | **Live** — reads real chain state, publishes a fingerprint, a third party can verify with no wallet. Deep-linkable at `#report` and `#verify`. |
 | v2 ledger (Art. 9 dimensions) | **Compiled + 34 circuit tests** — category × gender × base/variable, with the anonymity gate enforced in the read circuit. **Not yet deployed**; the Operator console can deploy it. |

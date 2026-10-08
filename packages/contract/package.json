@@ -34,7 +34,8 @@
     "sync:zk:v1": "rm -rf ../../apps/web/public/zk/candor && mkdir -p ../../apps/web/public/zk && cp -R src/managed/candor ../../apps/web/public/zk/candor",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "compile:v1": "compact compile src/candor.compact src/managed/candor"
+    "compile:v1": "compact compile src/candor.compact src/managed/candor",
+    "verify:chain": "tsx src/chainRead.ts"
   },
   "dependencies": {
     "@gotit/shared": "workspace:*",
