@@ -8,7 +8,8 @@ import {
   quartiles,
   renderReportMarkdown,
   reportToJson,
-  variableShare,
+  variableShareInterval,
+  NOT_DERIVABLE_REASON,
   emptyGroupHistograms,
   type CategoryInput,
   type GroupHistograms,
@@ -188,18 +189,42 @@ describe("pay gap", () => {
 });
 
 describe("variable pay share (Art. 9(1)(e))", () => {
-  it("computes the proportion receiving a complementary component", () => {
-    const g: GroupHistograms = {
-      total: hist([100_000, 100_000, 100_000, 100_000]),
-      base: hist([100_000, 100_000, 100_000, 100_000]),
-      variable: hist([0, 0, 0, 0]),
-    };
-    // Everyone's pay is accounted for in total, and all of it is base.
-    expect(variableShare(g)).toBe(0);
+  const g = (base: number[], variable: number[]): GroupHistograms => ({
+    total: base.map((_, i) => base[i] + variable[i]),
+    base,
+    variable,
   });
 
-  it("is zero for an empty group rather than NaN", () => {
-    expect(variableShare(emptyGroupHistograms())).toBe(0);
+  it("bounds the share above by the smaller of the two cells", () => {
+    // 4 paid base, 3 paid variable. At most 3 of the 4 can have both, so the
+    // share is at most 75%. The model cannot say fewer, because a person could
+    // have submitted variable without base.
+    const r = variableShareInterval(g([1, 1, 1, 1], [0, 1, 1, 1]));
+    expect(r.share!.high).toBeCloseTo(0.75);
+    expect(r.share!.low).toBe(0);
+    expect(r.precision).toBe("bounded");
+  });
+
+  it("bounds the share above by the base population when variable exceeds it", () => {
+    // Everyone on variable pay, more variable submissions than base. At most all
+    // of the base group can have received it.
+    const r = variableShareInterval(g([1, 1], [0, 0, 4, 4]));
+    expect(r.share!.high).toBe(1);
+  });
+
+  it("is not-derivable when the base group is empty — not 0%", () => {
+    // An empty base group means no denominator. Printing 0% here would read as
+    // a finding that nobody received variable pay, which is not what it says.
+    const r = variableShareInterval(g([], [0, 1]));
+    expect(r.precision).toBe("not-derivable");
+    expect(r.share).toBeNull();
+    expect(r.reason).toMatch(/no denominator/);
+  });
+
+  it("states why the interval cannot be tightened, on the record", () => {
+    expect(NOT_DERIVABLE_REASON).toMatch(/cannot be derived as a point estimate/);
+    expect(NOT_DERIVABLE_REASON).toMatch(/second nullifier/);
+    expect(NOT_DERIVABLE_REASON).toMatch(/refused/);
   });
 });
 

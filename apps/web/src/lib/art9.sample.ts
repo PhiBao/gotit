@@ -37,6 +37,11 @@ export function sampleArt9Report(categories: JobCategory[], k = DEFAULT_K): Art9
   add("engineering", GENDER.FEMALE, COMPONENT.BASE, 6, 2);
   add("engineering", GENDER.MALE, COMPONENT.BASE, 5, 5);
   add("engineering", GENDER.MALE, COMPONENT.BASE, 10, 6);
+  // The variable-pay side of engineering, on the variable bucket scale. Without
+  // this, Art. 9(1)(b) has nothing to report and the headline claim of Wave 2 —
+  // base and variable kept apart — is invisible in the demo.
+  add("engineering", GENDER.FEMALE, COMPONENT.VARIABLE, 9, 5);
+  add("engineering", GENDER.MALE, COMPONENT.VARIABLE, 6, 8);
   // Sales: both sides clear k, smaller gap.
   add("sales", GENDER.FEMALE, COMPONENT.BASE, 6, 2);
   add("sales", GENDER.MALE, COMPONENT.BASE, 6, 3);

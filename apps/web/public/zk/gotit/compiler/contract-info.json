@@ -166,6 +166,42 @@
         "type-name": "Uint",
         "maxval": 255
       }
+    },
+    {
+      "name": "getGroupHistogram",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "categoryKey",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "gender",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "component",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 10,
+        "type": {
+          "type-name": "Uint",
+          "maxval": 18446744073709551615
+        }
+      }
     }
   ],
   "witnesses": [

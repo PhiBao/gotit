@@ -278,6 +278,16 @@ export default function ReportPage() {
                     <td style={{ padding: "4px 8px 4px 0" }}>{money(row.reference.mean.low, row.reference.mean.high)}</td>
                     <td style={{ padding: "4px 8px 4px 0" }}>{money(row.comparison.mean.low, row.comparison.mean.high)}</td>
                   </tr>
+                  {row.variableShare && (
+                    <tr>
+                      <td style={{ padding: "4px 8px 4px 0", color: "var(--muted)", lineHeight: 1.4 }}>
+                        Receiving variable pay
+                        <span style={{ display: "block", fontSize: 11, color: "var(--muted2)" }}>Art. 9(1)(e), among contributors</span>
+                      </td>
+                      <td style={{ padding: "4px 8px 4px 0" }}>{shareText(row.variableShare.reference)}</td>
+                      <td style={{ padding: "4px 8px 4px 0" }}>{shareText(row.variableShare.comparison)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
 
@@ -418,6 +428,21 @@ function Stat({ label, value }: { label: string; value: string }) {
 function money(low: number, high: number): string {
   const f = (v: number) => (Number.isFinite(v) ? `$${Math.round(v).toLocaleString("en-US")}` : "$∞");
   return low === high ? f(low) : `${f(low)}–${f(high)}`;
+}
+
+/**
+ * Art. 9(1)(e) as the honest thing it is: a bounded proportion among
+ * contributors, never a bare percentage. A [0,0] interval means no CONTRIBUTOR
+ * reported variable pay — which is not the same as no worker receiving it, and
+ * rendering it as "0%" would assert something the data cannot support.
+ */
+function shareText(r: { share: { low: number; high: number } | null }): string {
+  if (!r.share) return "not derivable — no base-pay denominator";
+  const { low, high } = r.share;
+  const f = (v: number) => `${(v * 100).toFixed(1)}%`;
+  if (low === 0 && high === 0) return "0% of contributors";
+  if (low === high) return `${f(low)} of contributors`;
+  return `at most ${f(high)} of contributors`;
 }
 
 function formatPct(low: number, high: number): string {

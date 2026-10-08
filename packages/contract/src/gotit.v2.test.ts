@@ -103,6 +103,21 @@ function read(c: C, category: Uint8Array, gender: number, component: number, buc
   ).result;
 }
 
+/**
+ * The whole-group read, which the report page actually uses.
+ *
+ * `getHistogram` reads one bucket and costs one proof; `getGroupHistogram` reads
+ * all ten and costs one. They must agree on the gate — if they ever diverge, the
+ * fast path (which the app uses) would be the unguarded one.
+ */
+function readGroup(c: C, category: Uint8Array, gender: number, component: number): bigint[] {
+  const res = c.asUser(
+    (ctx: any) =>
+      c.contract.impureCircuits.getGroupHistogram(ctx, category, BigInt(gender), BigInt(component)),
+  ).result;
+  return Array.from(res as ArrayLike<bigint>).map((v) => BigInt(v));
+}
+
 function publishable(c: C, category: Uint8Array, gender: number, component: number) {
   return c.asUser(
     (ctx: any) => c.contract.impureCircuits.isPublishable(ctx, category, BigInt(gender), BigInt(component)),
@@ -228,6 +243,67 @@ describe("gotit v2 membership", () => {
     enroll(c, 42);
     enroll(c, 42);
     expect(c.ledger().members.size()).toBe(1n);
+  });
+});
+
+// ---- the whole-group read the report page uses -----------------------------
+
+describe("getGroupHistogram", () => {
+  it("agrees with getHistogram on every bucket, once the group is publishable", () => {
+    const c = deploy(42, secret32(1), 2);
+    const cell = (seed: number, gender: number, component: number, bucket: number) => {
+      enroll(c, seed);
+      submit(c, seed, { bucket, gender, component });
+    };
+    cell(42, GENDER.FEMALE, COMPONENT.BASE, 3);
+    cell(46, GENDER.FEMALE, COMPONENT.BASE, 3);
+    cell(48, GENDER.FEMALE, COMPONENT.BASE, 6);
+    cell(43, GENDER.MALE, COMPONENT.BASE, 5);
+    cell(45, GENDER.MALE, COMPONENT.BASE, 5);
+
+    const group = readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE);
+    for (let b = 0; b < 10; b++) {
+      expect(group[b]).toBe(read(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE, b));
+    }
+    expect(group.reduce((a, b) => a + b, 0n)).toBe(3n);
+  });
+
+  it("applies the same anonymity gate as getHistogram", () => {
+    // k=5, three people. Both reads must refuse — otherwise the fast path the
+    // report page uses would be the unguarded one.
+    const c = deploy(42);
+    seedGroup(c, { bucket: 5, gender: GENDER.FEMALE }, 3);
+
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE)).toEqual(
+      new Array(10).fill(0n),
+    );
+    expect(read(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE, 5)).toBe(0n);
+  });
+
+  it("gates each group independently, so a big team cannot lift a small one", () => {
+    const c = deploy(42, secret32(1), 5);
+    seedGroup(c, { bucket: 6, gender: GENDER.MALE, component: COMPONENT.BASE }, 40, 200);
+    seedGroup(c, { bucket: 2, gender: GENDER.FEMALE, component: COMPONENT.BASE }, 3, 300);
+
+    expect(readGroup(c, CAT_A, GENDER.MALE, COMPONENT.BASE).reduce((a, b) => a + b, 0n)).toBe(40n);
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE)).toEqual(new Array(10).fill(0n));
+  });
+
+  it("returns zeros for a group that was never touched", () => {
+    const c = deploy(42);
+    expect(readGroup(c, CAT_B, GENDER.FEMALE, COMPONENT.BASE)).toEqual(new Array(10).fill(0n));
+  });
+
+  it("separates base from variable pay, so neither is blended into the other", () => {
+    const c = deploy(42, secret32(1), 5);
+    seedGroup(c, { bucket: 3, gender: GENDER.FEMALE, component: COMPONENT.BASE }, 6, 400);
+    seedGroup(c, { bucket: 8, gender: GENDER.FEMALE, component: COMPONENT.VARIABLE }, 6, 500);
+
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE)[3]).toBe(6n);
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.VARIABLE)[8]).toBe(6n);
+    // Neither group carries the other's figures.
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.BASE)[8]).toBe(0n);
+    expect(readGroup(c, CAT_A, GENDER.FEMALE, COMPONENT.VARIABLE)[3]).toBe(0n);
   });
 });
 

@@ -19,6 +19,7 @@ import { deployContract, findDeployedContract } from "@midnight-ntwrk/midnight-j
 import { CompiledContract } from "@midnight-ntwrk/midnight-js-protocol/compact-js";
 import type { PrivateStateProvider } from "@midnight-ntwrk/midnight-js-types";
 import { inMemoryPrivateStateProvider } from "./privateState";
+import { BUCKET_COUNT } from "@gotit/shared";
 import { Contract as GotItV2Contract } from "@gotit/contract/managed/gotit/contract";
 import { witnesses, createPrivateState, type GotItPrivateState } from "@gotit/contract/witnesses-v2";
 import { issuerCommitment2 } from "@gotit/shared/hash";
@@ -160,12 +161,116 @@ export async function nextEpochV2(
 }
 
 /**
+ * A connected, reusable reader for one v2 contract.
+ *
+ * Built because the obvious implementation — call `findV2` per bucket — costs
+ * 4 categories x 3 genders x 2 components x 10 buckets = 240 contract
+ * connections per report. This connects once and reads through
+ * `found.callTx.query.<circuit>`, which is the path that actually runs the
+ * circuit's disclosure gate.
+ *
+ * Two read modes, deliberately separated:
+ *
+ *   gated   -> getHistogram / isPublishable / readK. Returns 0 for any group
+ *              below k, so a small group's PAY BANDS cannot be read out at all.
+ *              This is the only source of a published figure.
+ *   shape   -> raw ledger state. Reveals which groups exist, their headcount,
+ *              epoch, member and submission counts. Used ONLY for coverage and
+ *              the suppression reason, never as the source of a published
+ *              figure. Headcount is already public in the indexer for anyone who
+ *              asks, so reporting it adds no exposure — the pay bands are what
+ *              the gate protects.
+ */
+export type GatedReader = {
+  /** Contract address this reader is bound to. */
+  address: string;
+  /** k as reported by the contract's own readK circuit. */
+  k(): Promise<number>;
+  /** Period number from readEpoch. */
+  epoch(): Promise<number>;
+  /** Is this group large enough to publish? */
+  publishable(categoryKey: Uint8Array, gender: number, component: number): Promise<boolean>;
+  /**
+   * The 10 bucket counts for one group, THROUGH the circuit.
+   * For a group below k this returns all zeros — by design, not by accident.
+   */
+  histogram(categoryKey: Uint8Array, gender: number, component: number): Promise<number[]>;
+  /** Total buckets actually read, for observability in the UI. */
+  reads(): number;
+};
+
+export async function connectGatedReader(
+  contractAddress: string,
+  opts: { indexerUri: string; indexerWsUri: string; proverServerUri: string },
+): Promise<GatedReader> {
+  const providers = buildV2Providers({
+    ...opts,
+    walletProvider: undefined,
+    midnightProvider: undefined,
+  });
+  const found = await findV2(providers, contractAddress, {});
+  const query = (found.callTx as any).query;
+  let reads = 0;
+
+  const readK = async () => {
+    reads += 1;
+    return Number(await query.readK.readK());
+  };
+  const readEpoch = async () => {
+    reads += 1;
+    return Number(await query.readEpoch.readEpoch());
+  };
+  const readPublishable = async (
+    categoryKey: Uint8Array,
+    gender: number,
+    component: number,
+  ) => {
+    reads += 1;
+    const res = await query.isPublishable.isPublishable(
+      categoryKey,
+      BigInt(gender),
+      BigInt(component),
+    );
+    return BigInt(res) === 1n;
+  };
+  const readHistogram = async (
+    categoryKey: Uint8Array,
+    gender: number,
+    component: number,
+  ): Promise<number[]> => {
+    // One proof for all ten buckets, rather than ten. `getGroupHistogram`
+    // applies the same anonymity gate `getHistogram` does — the gate is per
+    // group, so there is nothing to lose and tenfold to gain.
+    reads += 1;
+    const res = (await query.getGroupHistogram.getGroupHistogram(
+      categoryKey,
+      BigInt(gender),
+      BigInt(component),
+    )) as Array<bigint | number> | { readonly length?: number };
+    const asArray = Array.from(res as ArrayLike<bigint | number>);
+    return Array.from({ length: BUCKET_COUNT }, (_, i) => Number(asArray[i] ?? 0));
+  };
+
+  return {
+    address: contractAddress,
+    k: readK,
+    epoch: readEpoch,
+    publishable: readPublishable,
+    histogram: readHistogram,
+    reads: () => reads,
+  };
+}
+
+/**
  * Read a bucket through the CONTRACT's read circuit rather than raw state.
  *
  * This is the point of the v2 design: `getHistogram` returns 0 for any group
  * below the anonymity threshold, so reading a small group through the contract
  * cannot leak it. Reading raw ledger state would bypass that gate — which is
  * exactly why the report page must go through here.
+ *
+ * Prefer `connectGatedReader` when reading more than one bucket: it shares a
+ * single contract connection.
  */
 export async function readHistogramV2(
   providers: GotItV2Providers,

@@ -197,3 +197,58 @@ export circuit readEpoch(): Uint<64> {
 export circuit readK(): Uint<8> {
   return kThreshold;
 }
+
+// One bucket's count, no gate. The gate lives in getGroupHistogram below; this
+// exists only so that circuit can be written as a plain vector literal rather
+// than a loop, which keeps it readable and obviously correct.
+circuit bucketCount(
+  categoryKey: Bytes<32>,
+  gender: Uint<8>,
+  component: Uint<8>,
+  bucket: Uint<8>
+): Uint<64> {
+  const bKey = disclose(persistentHash<[Bytes<32>, Uint<8>, Uint<8>, Uint<8>]>([categoryKey, gender, component, bucket]));
+  if (!histogram.member(bKey)) {
+    return 0 as Uint<64>;
+  }
+  return histogram.lookup(bKey);
+}
+
+// The whole group in one call. `getHistogram` above is the primitive and is
+// correct, but it is `proof=true` per bucket — reading ten buckets through it
+// costs ten proofs, and a report covers dozens of groups. Since the anonymity
+// gate is evaluated once per GROUP (groupCount vs kThreshold) and not per
+// bucket, returning the whole group costs one proof and enforces the same rule.
+//
+// That matters for more than latency. A read path that is expensive is a read
+// path people stop using, which is exactly what happened here: the gate lived in
+// the contract and in the docs while the report read raw ledger state, because
+// the gated read was never wired up. Making the gated read the FAST one is the
+// structural fix for that regression, not a performance tweak.
+export circuit getGroupHistogram(
+  categoryKey: Bytes<32>,
+  gender: Uint<8>,
+  component: Uint<8>
+): Vector<10, Uint<64>> {
+  const gKey = disclose(persistentHash<[Bytes<32>, Uint<8>, Uint<8>]>([categoryKey, gender, component]));
+  // Below the anonymity threshold, every bucket reads as 0 — for the employer
+  // who paid for the deployment just as much as for anyone else.
+  if (!groupCount.member(gKey) || groupCount.lookup(gKey) < kThreshold) {
+    return [
+      0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>,
+      0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>, 0 as Uint<64>,
+    ];
+  }
+  return [
+    bucketCount(categoryKey, gender, component, 0 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 1 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 2 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 3 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 4 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 5 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 6 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 7 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 8 as Uint<8>),
+    bucketCount(categoryKey, gender, component, 9 as Uint<8>),
+  ];
+}

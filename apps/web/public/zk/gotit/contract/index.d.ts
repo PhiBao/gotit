@@ -24,6 +24,10 @@ export type ImpureCircuits<PS> = {
                 component_0: bigint): __compactRuntime.CircuitResults<PS, bigint>;
   readEpoch(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
   readK(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
+  getGroupHistogram(context: __compactRuntime.CircuitContext<PS>,
+                    categoryKey_0: Uint8Array,
+                    gender_0: bigint,
+                    component_0: bigint): __compactRuntime.CircuitResults<PS, bigint[]>;
 }
 
 export type ProvableCircuits<PS> = {
@@ -45,6 +49,10 @@ export type ProvableCircuits<PS> = {
                 component_0: bigint): __compactRuntime.CircuitResults<PS, bigint>;
   readEpoch(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
   readK(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
+  getGroupHistogram(context: __compactRuntime.CircuitContext<PS>,
+                    categoryKey_0: Uint8Array,
+                    gender_0: bigint,
+                    component_0: bigint): __compactRuntime.CircuitResults<PS, bigint[]>;
 }
 
 export type PureCircuits = {
@@ -69,6 +77,10 @@ export type Circuits<PS> = {
                 component_0: bigint): __compactRuntime.CircuitResults<PS, bigint>;
   readEpoch(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
   readK(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, bigint>;
+  getGroupHistogram(context: __compactRuntime.CircuitContext<PS>,
+                    categoryKey_0: Uint8Array,
+                    gender_0: bigint,
+                    component_0: bigint): __compactRuntime.CircuitResults<PS, bigint[]>;
 }
 
 export type Ledger = {

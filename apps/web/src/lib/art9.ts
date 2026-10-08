@@ -102,6 +102,17 @@ export function assertSuppressedAreEmpty(report: PayGapReport, histograms: Map<s
  * only one gender present is not a comparison and is dropped by the engine's
  * two-sided suppression — which is the correct outcome, not a bug.
  */
+/**
+ * Map a reporting group onto the engine's reference/comparison shape.
+ *
+ * `total` is the population of THE COMPONENT THIS ROW IS ABOUT, not of all pay.
+ * That distinction was the bug here: for a variable-pay row we used to set
+ * `total` to zeros, and `buildReport` reads `total` for both the group size and
+ * the anonymity gate — so every variable row was suppressed as `no-data` with
+ * 0 participants. Art. 9(1)(b) and 9(1)(d), the variable-pay gaps, were
+ * unreachable in the shipped app. Only `.base` and `.variable` keep the split;
+ * `total` is the denominator the row's own statistics need.
+ */
 function toCategories(groups: ReportingGroupKey[], reading: ChainGroupReading): CategoryInput[] {
   const byCategoryComponent = new Map<string, { women?: ReportingGroupKey; men?: ReportingGroupKey }>();
 
@@ -122,15 +133,15 @@ function toCategories(groups: ReportingGroupKey[], reading: ChainGroupReading): 
 
     const womenH = hist(slot.women);
     const menH = hist(slot.men);
-    const base = (h: number[]): GroupHistograms =>
+    const shape = (h: number[]): GroupHistograms =>
       component === COMPONENT.BASE
         ? { total: [...h], base: [...h], variable: new Array(BUCKET_COUNT).fill(0) }
-        : { total: new Array(BUCKET_COUNT).fill(0), base: new Array(BUCKET_COUNT).fill(0), variable: [...h] };
+        : { total: [...h], base: new Array(BUCKET_COUNT).fill(0), variable: [...h] };
 
     out.push({
       category: `${categoryId} · ${COMPONENT_LABEL[component]}`,
-      reference: base(womenH),
-      comparison: base(menH),
+      reference: shape(womenH),
+      comparison: shape(menH),
       // The circuit threshold is authoritative. Passing the same k here keeps the
       // report engine's own two-sided suppression aligned with the chain gate, so
       // a group that the chain would refuse to publish is never rendered.

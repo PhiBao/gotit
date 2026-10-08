@@ -107,36 +107,6 @@ export function bucketFor(amount: number, component: ComponentId): number {
 }
 
 /**
- * Which on-chain groups currently hold data.
- *
- * Reads RAW ledger state, so it may only be used to answer "does this group
- * exist and roughly how big is it" — never to source a published count. The
- * returned `rawCounts` are deliberately NOT exposed to the report layer.
- */
-export type ChainGroupShape = {
-  categoryKeyHex: string;
-  gender: number;
-  component: number;
-  /** Participants in this group. Also subject to suppression when published. */
-  size: number;
-};
-
-export function discoverChainGroups(ledgerState: any, labelIndex?: Map<string, string>): ChainGroupShape[] {
-  const led = decodeV2State(ledgerState);
-  if (!led) return [];
-  const found: ChainGroupShape[] = [];
-  for (const [key, value] of led.groupCount) {
-    const size = Number(value?.value ?? value ?? 0);
-    if (size <= 0) continue;
-    const categoryKeyHex = labelIndex?.size
-      ? [...labelIndex.keys()].find((k) => k === key)
-      : undefined;
-    found.push({ categoryKeyHex: categoryKeyHex ?? "unknown", gender: -1, component: -1, size });
-  }
-  return found;
-}
-
-/**
  * Extract per-group histograms for KNOWN groups.
  *
  * The caller supplies the group list (derived from the employer's category

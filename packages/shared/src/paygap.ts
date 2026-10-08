@@ -387,7 +387,11 @@ export type ReportRow = {
   comparison: { size: number; mean: Interval; median: Interval | null };
   gap: ReturnType<typeof payGap>;
   medianGap: Interval | null;
-  variableShare: { reference: number; comparison: number } | null;
+  /**
+   * Art. 9(1)(e). An interval, never a number — see variableShareInterval for
+   * why the model cannot support a point estimate.
+   */
+  variableShare: { reference: VariableShareResult; comparison: VariableShareResult } | null;
   quartiles: { reference: Quartiles | null; comparison: Quartiles | null };
 };
 
@@ -420,6 +424,15 @@ export type CategoryInput = {
 
 const PERCENTILE_NOTE =
   "Gaps and means are intervals, not point estimates: the underlying data is bucketed, so the exact figures are not recoverable. Quartiles and counts are exact.";
+export const NOT_DERIVABLE_REASON =
+  "Art. 9(1)(e) cannot be derived as a point estimate from an unlinkable histogram. " +
+  "The ledger counts base-pay submissions and variable-pay submissions in separate cells " +
+  "with no link between them, so |base| and |variable| are exact but their intersection is " +
+  "not known. We publish the interval that the model bounds rather than a number it cannot " +
+  "support. Tightening it would require either linking a person's base and variable pay — " +
+  "which defeats the design — or counting distinct contributors per group per period via a " +
+  "second nullifier, which would reveal that one person submitted both. Both are refused.";
+
 const PARTICIPATION_NOTE =
   "Participation is voluntary. Category sizes below the anonymity threshold are suppressed, and participation counts are shown so incomplete coverage is visible rather than hidden.";
 
@@ -480,8 +493,8 @@ export function buildReport(
       gap,
       medianGap: medianGap(c.reference.total, c.comparison.total),
       variableShare: {
-        reference: variableShare(c.reference),
-        comparison: variableShare(c.comparison),
+        reference: variableShareInterval(c.reference),
+        comparison: variableShareInterval(c.comparison),
       },
       quartiles: {
         reference: quartiles(c.reference.total),
@@ -499,15 +512,92 @@ export function buildReport(
     participatingCategories: participating,
     totalParticipants: total,
     partialCategories: partial,
-    notes: [PERCENTILE_NOTE, PARTICIPATION_NOTE],
+    notes: [PERCENTILE_NOTE, PARTICIPATION_NOTE, VARIABLE_SHARE_NOTE],
   };
 }
 
-/** Proportion of a group receiving any variable component (Art. 9(1)(e)). */
-export function variableShare(g: GroupHistograms): number {
-  const withVariable = groupSize(g.total) - groupSize(g.base);
-  const total = groupSize(g.total);
-  return total === 0 ? 0 : withVariable / total;
+/**
+ * Art. 9(1)(e): the proportion of a group receiving complementary or variable pay.
+ *
+ * This is the statistic our model CANNOT answer as a number, and the reason is
+ * structural rather than a bug. The ledger holds two independent maps:
+ *
+ *   base    — submissions of base pay, keyed (category, gender, BASE, bucket)
+ *   variable — submissions of variable pay, keyed (category, gender, VARIABLE, bucket)
+ *
+ * A person submitting both increments two separate cells with no link between
+ * them. So we know |base| exactly and |variable| exactly, but not |base ∩
+ * variable| — the quantity (e) is asking about. Any single number we printed
+ * would be a guess wearing the costume of a statistic.
+ *
+ * What the model DOES bound. The overlap is a subset of both, so:
+ *
+ *     |∩| <= min(|base|, |variable|)
+ *     |∩| >= max(0, |base| + |variable| - N)
+ *
+ * where N is the number of distinct people who submitted anything for this
+ * reporting group in this period. The ledger does not track N, because tracking
+ * it would mean a second nullifier keyed on the group — which would reveal that
+ * one person submitted both base and variable pay, i.e. it links the two cells
+ * the design deliberately leaves unlinkable. Without N the lower bound is 0.
+ *
+ * So we publish the interval that actually holds, and we say why it cannot be
+ * tightened. The two ways to tighten it are both privacy regressions we refuse:
+ * link a person's base and variable submissions, or count distinct contributors
+ * per group per period. Both are named in `NOT_DERIVABLE_REASON` so a reviewer
+ * can check our reasoning rather than take our word for it.
+ *
+ * Making (e) an interval is the same honesty move as making the mean an
+ * interval — applied to the statistic most published reports fabricate.
+ */
+export type VariableShareResult = {
+  /** Bounds on the true proportion. `low` may be 0 without a group-level N. */
+  share: Interval | null;
+  /** Population answering to (e)'s denominator — the base-pay group. */
+  populationSize: number;
+  /** How many submitted variable pay at all. */
+  variableCount: number;
+  /** Whether the bounds are tight enough to file, or only bounded. */
+  precision: "exact" | "bounded" | "not-derivable";
+  /** Why, when this is not derivable as a number. */
+  reason?: string;
+};
+
+const VARIABLE_SHARE_NOTE =
+  "Art. 9(1)(e) is reported as an interval. " + NOT_DERIVABLE_REASON;
+
+export function variableShareInterval(
+  g: GroupHistograms,
+): VariableShareResult {
+  const population = groupSize(g.base);
+  const variableCount = groupSize(g.variable);
+
+  if (population === 0) {
+    // The base-pay group is empty, so the proportion has no denominator. This is
+    // a different fact from "nobody received variable pay" and must not render
+    // as 0%, which would read as a finding.
+    return {
+      share: null,
+      populationSize: 0,
+      variableCount,
+      precision: "not-derivable",
+      reason:
+        "The base-pay group for this reporting group is empty, so the proportion receiving " +
+        "variable pay has no denominator. This is not a finding of 0%.",
+    };
+  }
+
+  const overlapUpperBound = Math.min(population, variableCount);
+  const overlapLowerBound = 0;
+  const share = interval(overlapLowerBound / population, overlapUpperBound / population);
+
+  // "exact" when the bounds meet — which happens only if the two cells are
+  // linked, i.e. never in the current model. Kept as a branch so the day a
+  // group-level contributor count lands, this tightens without a rewrite.
+  const precision: VariableShareResult["precision"] =
+    overlapLowerBound === overlapUpperBound ? "exact" : "bounded";
+
+  return { share, populationSize: population, variableCount, precision };
 }
 
 // ---- Rendering ----
@@ -521,6 +611,21 @@ function money(i: Interval): string {
 
 function pct(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
+}
+
+/**
+ * Render a bounded proportion so it can be misread as a worker-level finding
+ * in neither direction. "[0,0]" means no CONTRIBUTOR reported variable pay; it
+ * does not mean no worker received it, and printing "0.0%" alone would imply
+ * the second.
+ */
+function renderShare(r: VariableShareResult): string {
+  if (!r.share) return "not derivable — no base-pay denominator";
+  const lo = r.share.low;
+  const hi = r.share.high;
+  if (lo === 0 && hi === 0) return "0% of contributors reported variable pay";
+  if (lo === hi) return `${pct(lo)} of contributors`;
+  return `at most ${pct(hi)} of contributors (lower bound not provable)`;
 }
 
 /**
@@ -547,7 +652,9 @@ export function renderReportMarkdown(r: PayGapReport): string {
     L.push(`| Median pay | ${row.reference.median ? money(row.reference.median) : "—"} | ${row.comparison.median ? money(row.comparison.median) : "—"} |`);
     L.push(`| Mean pay | ${money(row.reference.mean)} | ${money(row.comparison.mean)} |`);
     L.push(
-      `| Receiving variable pay | ${row.variableShare ? pct(row.variableShare.reference) : "—"} | ${row.variableShare ? pct(row.variableShare.comparison) : "—"} |`,
+      `| Reported variable pay, among contributors (Art. 9(1)(e)) | ${
+        row.variableShare ? renderShare(row.variableShare.reference) : "—"
+      } | ${row.variableShare ? renderShare(row.variableShare.comparison) : "—"} |`,
     );
     L.push("");
     if (row.gap) {

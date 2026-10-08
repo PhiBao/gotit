@@ -28,6 +28,8 @@ import {
   type JobCategory,
 } from "./groups";
 import { assembleArt9Report, type Art9ReportBundle } from "./art9";
+import { connectGatedReader } from "./midnight.v2";
+import { crossCheckGroup } from "./gatedLogic";
 
 const ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
 const INDEXER_HTTP = `${ORIGIN}/indexer/api/v4/graphql`;
@@ -87,39 +89,20 @@ function readKFromLedger(led: any): number {
   }
 }
 
-/** Read a bucket through the CONTRACT's gated read circuit. */
-async function readBucketGated(
-  contractAddress: string,
-  categoryLabel: string,
-  gender: number,
-  component: number,
-  bucket: number,
-): Promise<number> {
-  const v2 = await import("./midnight.v2");
-  const providers = v2.buildV2Providers({
-    indexerUri: INDEXER_HTTP,
-    indexerWsUri: INDEXER_WS,
-    proverServerUri: `${ORIGIN}/proof-server`,
-    walletProvider: undefined,
-    midnightProvider: undefined,
-  });
-  const found = await v2.findV2(providers, contractAddress, {});
-  const res = await (found.callTx as any).query.getHistogram.getHistogram(
-    categoryKey(categoryLabel),
-    BigInt(gender),
-    BigInt(component),
-    BigInt(bucket),
-  );
-  return Number(res);
-}
-
 /**
  * Build the Art. 9 report from live v2 state.
  *
- * Note the counts come from `readGroupHistograms` (raw state) and are then
- * validated by `assertNoSmallCellLeak` — if any below-k group produced a row,
- * assembly throws. In practice the report engine's own two-sided suppression
- * already withholds those rows; the assertion is the backstop.
+ * Every PUBLISHED figure is read through the contract's `getHistogram` circuit,
+ * which returns 0 for any group below the anonymity threshold. Raw ledger state
+ * is used only to discover which groups exist and how large they are — the two
+ * things the report needs in order to say what it withheld and why.
+ *
+ * That split is more than a convention here. `crossCheckGated` re-reads the
+ * groups the raw state claims are publishable and asserts the two sources
+ * agree. If a future change makes the app read raw state for a published figure
+ * again, that check fails and the report throws instead of filing numbers that
+ * bypass the gate. See art9.ts `assertNoSmallCellLeak` for the other half of
+ * that backstop.
  */
 export async function buildV2Report(
   contractAddress: string,
@@ -129,12 +112,38 @@ export async function buildV2Report(
   const shape = (await readV2Shape(contractAddress)) as V2StateShape & { raw: unknown };
   const groups = allGroups(categories);
 
+  // The threshold in force, from the contract's own circuit rather than a
+  // constant, so the report states the number that was actually applied.
+  const reader = await connectGatedReader(contractAddress, {
+    indexerUri: INDEXER_HTTP,
+    indexerWsUri: INDEXER_WS,
+    proverServerUri: `${ORIGIN}/proof-server`,
+  });
+  const k = await reader.k();
+
+  // PUBLISHED FIGURES: gated reads only.
+  const gated = new Map<string, number[]>();
+  const crossCheck = crossCheckGroups(shape.raw, groups, k);
+  for (const g of groups) {
+    const counts = crossCheckGroup({
+      gated: await reader.histogram(categoryKey(g.categoryLabel), g.gender, g.component),
+      raw: crossCheck.get(groupKeyHex(g)) ?? [],
+      k,
+      label: g.categoryLabel,
+      gender: g.gender,
+      component: g.component,
+    });
+    gated.set(groupKeyHex(g), counts);
+  }
+
   const bundle = assembleArt9Report({
     categories,
     reading: {
-      histograms: readGroupHistograms(shape.raw, groups),
+      // gated histograms for the statistics.
+      histograms: gated,
+      // raw sizes for coverage and the suppression reason. Already public.
       sizes: readGroupSizes(shape.raw, groups),
-      k: shape.k,
+      k,
       period: shape.epoch,
       members: shape.members,
       submissions: shape.submissions,
@@ -143,8 +152,36 @@ export async function buildV2Report(
     generatedAt: new Date().toISOString().slice(0, 10),
   });
 
-  const fingerprint = fingerprintV2(shape, groups, categories);
+  const fingerprint = fingerprintV2({ ...shape, k }, groups, categories, gated);
   return { bundle, fingerprint };
+}
+
+function sum(h: number[]): number {
+  return h.reduce((a, b) => a + b, 0);
+}
+
+/**
+ * Raw-state counts for every group raw state claims clears k, keyed by group.
+ *
+ * Groups below k are deliberately absent: the contract returns 0 for them and
+ * raw state returns the count, so the two cannot agree and there is nothing to
+ * cross-check. The point of the exercise is to catch the opposite error — a
+ * published figure sourced from raw state, which would be silently wrong.
+ */
+function crossCheckGroups(
+  raw: unknown,
+  groups: ReturnType<typeof allGroups>,
+  k: number,
+): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  const sizes = readGroupSizes(raw, groups);
+  for (const g of groups) {
+    const size = sizes.get(groupKeyHex(g)) ?? 0;
+    if (size < k) continue;
+    const [counts] = readGroupHistograms(raw, [g]).values();
+    if (counts) out.set(groupKeyHex(g), counts);
+  }
+  return out;
 }
 
 /**
@@ -156,9 +193,10 @@ export async function buildV2Report(
  * order still fingerprints identically.
  */
 export function fingerprintV2(
-  shape: V2StateShape & { raw: unknown },
+  shape: V2StateShape,
   groups: ReturnType<typeof allGroups>,
   categories: JobCategory[],
+  histograms?: Map<string, number[]>,
 ): string {
   const parts: string[] = [
     `epoch=${shape.epoch}`,
@@ -168,8 +206,10 @@ export function fingerprintV2(
   ];
   const rows: string[] = [];
   for (const g of groups) {
-    const h = readGroupHistograms(shape.raw, [g]).get(groupKeyHex(g));
-    rows.push(`${g.categoryId}:${g.gender}:${g.component}=[${(h ?? new Array(BUCKET_COUNT).fill(0)).join(",")}]`);
+    const h = histograms?.get(groupKeyHex(g));
+    rows.push(
+      `${g.categoryId}:${g.gender}:${g.component}=[${(h ?? new Array(BUCKET_COUNT).fill(0)).join(",")}]`,
+    );
   }
   rows.sort();
   parts.push(...rows);
@@ -202,7 +242,22 @@ export async function verifyV2Report(
   categories: JobCategory[],
 ): Promise<V2Verification> {
   const shape = (await readV2Shape(contractAddress)) as V2StateShape & { raw: unknown };
-  const actual = fingerprintV2(shape, allGroups(categories), categories);
+  const groups = allGroups(categories);
+  const reader = await connectGatedReader(contractAddress, {
+    indexerUri: INDEXER_HTTP,
+    indexerWsUri: INDEXER_WS,
+    proverServerUri: `${ORIGIN}/proof-server`,
+  });
+  // Same source as the report: the gated read circuit. A verifier re-reads what
+  // the report read, not a bypass path that happens to be cheaper.
+  const histograms = new Map<string, number[]>();
+  for (const g of groups) {
+    histograms.set(
+      groupKeyHex(g),
+      await reader.histogram(categoryKey(g.categoryLabel), g.gender, g.component),
+    );
+  }
+  const actual = fingerprintV2({ ...shape, k: await reader.k() }, groups, categories, histograms);
   return {
     ok: actual.toLowerCase() === expectedFingerprint.toLowerCase(),
     expected: expectedFingerprint,
