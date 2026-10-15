@@ -25,6 +25,8 @@ import {
 } from "./lib/ledger";
 import { requestCode, confirmCode, enrollLeaf } from "./lib/issuer";
 import type { GotItProviders } from "./lib/midnight";
+import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
+import { preflightV2Deploy, describePreflight } from "./lib/preflight";
 import { isLaceAvailable, getStoredContractAddress, setStoredContractAddress, getEffectiveIssuerKey, getBakedIssuerKey, getStoredIssuerKey, getStoredV2ContractAddress, setStoredV2ContractAddress } from "./lib/session";
 import type { LedgerSnapshot } from "./lib/ledger";
 
@@ -910,6 +912,15 @@ function OperatorPanel({
   onAddress: (addr: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  /**
+   * The last chain failure, unwrapped.
+   *
+   * Chain errors arrive as Effect FiberFailures whose `message` is empty, so a
+   * toast saying "deploy failed" is all the operator gets. This holds the full
+   * extracted report so the reason is readable on screen, in the surface where
+   * the deploy was attempted, without opening devtools.
+   */
+  const [chainError, setChainError] = useState<{ op: string; report: string; raw: string } | null>(null);
   const [issuerKeyHex, setIssuerKeyHex] = useState<string>(() => getStoredIssuerKey() ?? "");
   const [leafHex, setLeafHex] = useState<string>("");
   const [enrollEmail, setEnrollEmail] = useState<string>("");
@@ -946,8 +957,9 @@ function OperatorPanel({
       if (addr) { onAddress(addr); onToast(`Deployed at ${addr}`); }
       else onToast("Deployed — check Lace for the address");
     } catch (e: any) {
-      console.error("[gotit] deploy failed — full error:", e, "cause:", e?.cause);
-      onToast(e?.message ?? "deploy failed");
+      console.error("[gotit] deploy failed:", failureReport(e), "\nraw:", e);
+      onToast(`deploy failed: ${describeFailure(e)}`);
+      setChainError({ op: "v1 deploy", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
 
@@ -959,6 +971,26 @@ function OperatorPanel({
     try {
       const v2 = await import("./lib/midnight.v2");
       const { DEFAULT_K } = await import("@gotit/shared/paygap");
+
+      // Check the prerequisites before touching the chain. A deploy that fails
+      // inside midnight-js raises an Effect failure with an EMPTY message, so a
+      // missing artefact or a stopped prover is indistinguishable from a wallet
+      // problem. This turns that into a named cause.
+      const pre = await preflightV2Deploy({
+        origin: window.location.origin,
+        walletConnected: Boolean(chain),
+        issuerKeyOk: keyValid,
+      });
+      if (!pre.ok) {
+        setChainError({
+          op: "v2 deploy preflight",
+          report: describePreflight(pre),
+          raw: safeStringify(pre.checks),
+        });
+        onToast(`v2 deploy blocked: ${pre.summary}`);
+        return;
+      }
+
       const providers = v2.buildV2Providers({
         indexerUri: (chain.providers.publicDataProvider as any).config?.indexerUri ?? window.location.origin + "/indexer/api/v4/graphql",
         indexerWsUri: window.location.origin.replace(/^http/, "ws") + "/indexer/api/v4/graphql/ws",
@@ -971,8 +1003,9 @@ function OperatorPanel({
       setStoredV2ContractAddress(addr);
       onToast(`v2 deployed at ${addr} (k=${DEFAULT_K}). Use it as the report source.`);
     } catch (e: any) {
-      console.error("[gotit] v2 deploy failed — full error:", e, "cause:", e?.cause);
-      onToast(e?.message ?? "v2 deploy failed");
+      console.error("[gotit] v2 deploy failed:", failureReport(e), "\nraw:", e);
+      onToast(`v2 deploy failed: ${describeFailure(e)}`);
+      setChainError({ op: "v2 deploy", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
 
@@ -992,8 +1025,9 @@ function OperatorPanel({
       await v2.nextEpochV2(providers, v2Address, { issuerKey: hexToBytes(effectiveKey) });
       onToast("Reporting period advanced — everyone may contribute once more");
     } catch (e: any) {
-      console.error("[gotit] v2 nextEpoch failed:", e, "cause:", e?.cause);
-      onToast(e?.message ?? "nextEpoch failed");
+      console.error("[gotit] v2 nextEpoch failed:", failureReport(e), "\nraw:", e);
+      onToast(`nextEpoch failed: ${describeFailure(e)}`);
+      setChainError({ op: "v2 nextEpoch", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
 
@@ -1010,8 +1044,9 @@ function OperatorPanel({
       });
       onToast("Member enrolled on-chain");
     } catch (e: any) {
-      console.error("[gotit] enroll failed — full error:", e, "cause:", e?.cause);
-      onToast(e?.message ?? "enroll failed");
+      console.error("[gotit] enroll failed:", failureReport(e), "\nraw:", e);
+      onToast(`enroll failed: ${describeFailure(e)}`);
+      setChainError({ op: "enroll", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
 
@@ -1096,6 +1131,50 @@ function OperatorPanel({
                 threshold inside the read circuit — <code>getHistogram</code> returns 0 for any group
                 below k, so a small category cannot be published at all. Wave 1 keeps working untouched.
               </div>
+              {chainError && (
+                <div
+                  className="notice"
+                  style={{ marginTop: 12, borderColor: "#4c1d1d", background: "#160c0c", fontSize: 12 }}
+                >
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <b style={{ color: "#fca5a5" }}>Last chain failure — {chainError.op}</b>
+                    <div className="row" style={{ gap: 8 }}>
+                      <button
+                        className="btn btn-ghost small"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(`${chainError.op}\n\n${chainError.report}\n\nraw:\n${chainError.raw}`);
+                          onToast("Error detail copied");
+                        }}
+                      >
+                        Copy detail
+                      </button>
+                      <button className="btn btn-ghost small" onClick={() => setChainError(null)}>
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                  <pre
+                    className="mono"
+                    style={{ marginTop: 8, marginBottom: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5, maxHeight: 260, overflow: "auto" }}
+                  >
+                    {chainError.report}
+                  </pre>
+                  <details style={{ marginTop: 8 }}>
+                    <summary className="muted" style={{ cursor: "pointer" }}>raw error object</summary>
+                    <pre
+                      className="mono"
+                      style={{ marginTop: 6, marginBottom: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 240, overflow: "auto" }}
+                    >
+                      {chainError.raw}
+                    </pre>
+                  </details>
+                  <div className="muted" style={{ marginTop: 8, lineHeight: 1.5 }}>
+                    The wallet, the indexer and the proof server are three different services. The line above
+                    naming a host or a path tells you which one answered.
+                  </div>
+                </div>
+              )}
+
               {v2Address && (
                 <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                   <button className="btn small" onClick={() => { onAddress(v2Address); onToast("Report will read the v2 contract"); }}>

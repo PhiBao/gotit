@@ -8,14 +8,15 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm -r build && node scripts/check-artifacts.mjs",
     "dev": "pnpm --filter @gotit/web dev",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "contract:compile": "pnpm --filter @gotit/contract compile",
     "contract:build": "pnpm --filter @gotit/contract build",
     "check:submission": "node scripts/check-submission.mjs AKINDO_SUBMISSION_DRAFT.md",
-    "dev:all": "concurrently -n web,issuer \"pnpm --filter @gotit/web dev\" \"pnpm --filter @gotit/issuer dev\""
+    "dev:all": "concurrently -n web,issuer \"pnpm --filter @gotit/web dev\" \"pnpm --filter @gotit/issuer dev\"",
+    "check:artifacts": "node scripts/check-artifacts.mjs"
   },
   "packageManager": "pnpm@9.12.0",
   "engines": {
