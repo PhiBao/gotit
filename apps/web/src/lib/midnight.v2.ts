@@ -21,6 +21,8 @@ import type { PrivateStateProvider } from "@midnight-ntwrk/midnight-js-types";
 import { inMemoryPrivateStateProvider } from "./privateState";
 import { BUCKET_COUNT } from "@gotit/shared";
 import { extractContractAddress } from "./deployResult";
+import { makeLocalGatedReader } from "./localGatedReader";
+import { asContractAddress } from "@midnight-ntwrk/midnight-js-types";
 import { Contract as GotItV2Contract } from "@gotit/contract/managed/gotit/contract";
 import { witnesses, createPrivateState, type GotItPrivateState } from "@gotit/contract/witnesses-v2";
 import { issuerCommitment2 } from "@gotit/shared/hash";
@@ -200,130 +202,61 @@ export type GatedReader = {
   reads(): number;
 };
 
+/**
+ * The minimum provider set needed to fetch contract state.
+ *
+ * Reads need no wallet, no private state and no prover, so this deliberately
+ * builds none of them: a reader who has never connected a wallet can still
+ * produce a report, which is the whole point of the verification surface.
+ */
+function buildProvidersForReads(opts: { indexerUri: string; indexerWsUri: string }) {
+  return {
+    publicDataProvider: indexerPublicDataProvider(opts.indexerUri, opts.indexerWsUri),
+  };
+}
+
 export async function connectGatedReader(
   contractAddress: string,
-  opts: { indexerUri: string; indexerWsUri: string; proverServerUri: string },
+  _opts: { indexerUri: string; indexerWsUri: string; proverServerUri: string },
 ): Promise<GatedReader> {
-  const providers = buildV2Providers({
-    ...opts,
-    walletProvider: undefined,
-    midnightProvider: undefined,
-  });
-  const found = await findV2(providers, contractAddress, {});
-  const query = (found.callTx as any).query;
-  let reads = 0;
-
-  const readK = async () => {
-    reads += 1;
-    return Number(await query.readK.readK());
-  };
-  const readEpoch = async () => {
-    reads += 1;
-    return Number(await query.readEpoch.readEpoch());
-  };
-  const readPublishable = async (
-    categoryKey: Uint8Array,
-    gender: number,
-    component: number,
-  ) => {
-    reads += 1;
-    const res = await query.isPublishable.isPublishable(
-      categoryKey,
-      BigInt(gender),
-      BigInt(component),
+  // Fetch the contract state once, then run the read circuits LOCALLY against it.
+  //
+  // The previous version called `found.callTx.query.getHistogram.getHistogram`, an
+  // API that does not exist - `CircuitCallTxInterface` is a flat map of circuit ID
+  // to function. Nothing caught it because the code only runs when a v2 contract
+  // exists to be read, and the first time one did the report page failed with
+  // "Cannot read properties of undefined (reading 'readK')".
+  //
+  // The literal correction, `callTx.getGroupHistogram(...)`, would have been worse:
+  // that interface BUILDS AND SUBMITS A TRANSACTION, so reading a report would cost
+  // DUST and a wallet approval per circuit call. Reads must not be transactions.
+  //
+  // Local evaluation runs the deployed circuit's own code, gate included. No proof,
+  // no wallet, no transaction - and a reader who has never connected one can still
+  // produce a report. See localGatedReader.ts.
+  const providers = buildProvidersForReads(_opts);
+  const state = await providers.publicDataProvider.queryContractState(
+    asContractAddress(contractAddress) as any,
+  );
+  if (!state) {
+    throw new Error(
+      `no readable state for ${contractAddress}. Check the address, and that the indexer has ` +
+        `indexed the contract.`,
     );
-    return BigInt(res) === 1n;
-  };
-  const readHistogram = async (
-    categoryKey: Uint8Array,
-    gender: number,
-    component: number,
-  ): Promise<number[]> => {
-    // One proof for all ten buckets, rather than ten. `getGroupHistogram`
-    // applies the same anonymity gate `getHistogram` does — the gate is per
-    // group, so there is nothing to lose and tenfold to gain.
-    reads += 1;
-    const res = (await query.getGroupHistogram.getGroupHistogram(
-      categoryKey,
-      BigInt(gender),
-      BigInt(component),
-    )) as Array<bigint | number> | { readonly length?: number };
-    const asArray = Array.from(res as ArrayLike<bigint | number>);
-    return Array.from({ length: BUCKET_COUNT }, (_, i) => Number(asArray[i] ?? 0));
-  };
-
+  }
+  const local = makeLocalGatedReader(state, contractAddress);
   return {
     address: contractAddress,
-    k: readK,
-    epoch: readEpoch,
-    publishable: readPublishable,
-    histogram: readHistogram,
-    reads: () => reads,
+    k: async () => local.k(),
+    epoch: async () => local.epoch(),
+    publishable: async (categoryKey, gender, component) =>
+      local.publishable(categoryKey, gender, component),
+    histogram: async (categoryKey, gender, component) =>
+      local.histogram(categoryKey, gender, component),
+    reads: () => local.reads(),
   };
 }
 
-/**
- * Read a bucket through the CONTRACT's read circuit rather than raw state.
- *
- * This is the point of the v2 design: `getHistogram` returns 0 for any group
- * below the anonymity threshold, so reading a small group through the contract
- * cannot leak it. Reading raw ledger state would bypass that gate — which is
- * exactly why the report page must go through here.
- *
- * Prefer `connectGatedReader` when reading more than one bucket: it shares a
- * single contract connection.
- */
-export async function readHistogramV2(
-  providers: GotItV2Providers,
-  contractAddress: string,
-  opts: { categoryKey: Uint8Array; gender: number; component: number; bucket: number },
-): Promise<bigint> {
-  const found = await findV2(providers, contractAddress, {});
-  const res = await (found.callTx as any).query.getHistogram.getHistogram(
-    opts.categoryKey,
-    BigInt(opts.gender),
-    BigInt(opts.component),
-    BigInt(opts.bucket),
-  );
-  return BigInt(res);
-}
-
-export async function readIsPublishableV2(
-  providers: GotItV2Providers,
-  contractAddress: string,
-  opts: { categoryKey: Uint8Array; gender: number; component: number },
-): Promise<boolean> {
-  const found = await findV2(providers, contractAddress, {});
-  const res = await (found.callTx as any).query.isPublishable.isPublishable(
-    opts.categoryKey,
-    BigInt(opts.gender),
-    BigInt(opts.component),
-  );
-  return BigInt(res) === 1n;
-}
-
-export async function readKV2(providers: GotItV2Providers, contractAddress: string): Promise<number> {
-  const found = await findV2(providers, contractAddress, {});
-  const res = await (found.callTx as any).query.readK.readK();
-  return Number(res);
-}
-
-export async function readEpochV2(providers: GotItV2Providers, contractAddress: string): Promise<number> {
-  const found = await findV2(providers, contractAddress, {});
-  const res = await (found.callTx as any).query.readEpoch.readEpoch();
-  return Number(res);
-}
-
-/**
- * Decode a queryable ledger state with the generated v2 decoder.
- *
- * Used for the full-population read (which reporting groups exist, epoch,
- * member and nullifier counts). Note that this exposes raw map contents, which
- * BYPASSES the k-gate — so it is only ever used to discover which groups exist
- * and how large they are. Every published figure must come from
- * `readHistogramV2` instead. `assertNoSmallCellLeak` in the report layer is the
- * backstop on that rule.
- */
 export function decodeV2State(state: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (GotItV2Contract as any).ledger ? (GotItV2Contract as any).ledger(state.data ?? state) : null;

@@ -59,6 +59,11 @@ export default defineConfig({
       { find: /^@gotit\/shared\/hash$/, replacement: src("../../packages/shared/src/hash.ts") },
       { find: /^@gotit\/shared\/mockLedger$/, replacement: src("../../packages/shared/src/mockLedger.ts") },
       { find: /^@gotit\/shared$/, replacement: src("../../packages/shared/src/index.ts") },
+      // The generated contract and the v2 witnesses come from the contract
+      // package. They are build artefacts with no source equivalent, so they
+      // resolve to dist and the artefact check guards that dist is current.
+      { find: /^@gotit\/contract\/managed\/gotit\/contract$/, replacement: src("../../packages/contract/src/managed/gotit/contract/index.js") },
+      { find: /^@gotit\/contract\/witnesses-v2$/, replacement: src("../../packages/contract/src/witnesses.v2.ts") },
     ],
   },
 });

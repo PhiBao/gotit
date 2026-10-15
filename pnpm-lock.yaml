@@ -24,6 +24,9 @@ importers:
       '@gotit/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@midnight-ntwrk/compact-runtime':
+        specifier: ^0.16.0
+        version: 0.16.0
       '@midnight-ntwrk/dapp-connector-api':
         specifier: 4.0.1
         version: 4.0.1

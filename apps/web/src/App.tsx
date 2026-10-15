@@ -27,7 +27,7 @@ import { requestCode, confirmCode, enrollLeaf } from "./lib/issuer";
 import type { GotItProviders } from "./lib/midnight";
 import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
 import type { IndexerReport } from "./lib/indexerStatus";
-import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH } from "./lib/indexerConfig";
+import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH, INDEXER_HTTP, INDEXER_WS } from "./lib/indexerConfig";
 import { preflightV2Deploy, describePreflight } from "./lib/preflight";
 import { isLaceAvailable, getStoredContractAddress, setStoredContractAddress, getEffectiveIssuerKey, getBakedIssuerKey, getStoredIssuerKey, getStoredV2ContractAddress, setStoredV2ContractAddress } from "./lib/session";
 import type { LedgerSnapshot } from "./lib/ledger";
@@ -1004,6 +1004,25 @@ function OperatorPanel({
    * the deploy was attempted, without opening devtools.
    */
   const [chainError, setChainError] = useState<{ op: string; report: string; raw: string } | null>(null);
+  /**
+   * The v2 contribution form.
+   *
+   * Nothing submitted to the v2 ledger until this existed: deployV2 was wired to
+   * a button, submitV2 was not wired to anything, so a deployed contract could
+   * never receive a figure and the report always said "nothing publishable".
+   *
+   * `seed` derives the person's secret, so the operator can put N distinct people
+   * into the ledger by advancing it. It auto-increments after each submission to
+   * make that one click per person.
+   */
+  const [v2Form, setV2Form] = useState({
+    seed: "person-1",
+    category: "engineering",
+    gender: 0,
+    component: 0,
+    bucket: 4,
+  });
+  const [v2Log, setV2Log] = useState<string[]>([]);
   const [issuerKeyHex, setIssuerKeyHex] = useState<string>(() => getStoredIssuerKey() ?? "");
   const [leafHex, setLeafHex] = useState<string>("");
   const [enrollEmail, setEnrollEmail] = useState<string>("");
@@ -1078,8 +1097,8 @@ function OperatorPanel({
       }
 
       const providers = v2.buildV2Providers({
-        indexerUri: (chain.providers.publicDataProvider as any).config?.indexerUri ?? window.location.origin + "/indexer/api/v4/graphql",
-        indexerWsUri: window.location.origin.replace(/^http/, "ws") + "/indexer/api/v4/graphql/ws",
+        indexerUri: INDEXER_HTTP,
+        indexerWsUri: INDEXER_WS,
         proverServerUri: `${window.location.origin}/proof-server`,
         walletProvider: (chain.providers as any).walletProvider,
         midnightProvider: (chain.providers as any).midnightProvider,
@@ -1107,8 +1126,8 @@ function OperatorPanel({
     try {
       const v2 = await import("./lib/midnight.v2");
       const providers = v2.buildV2Providers({
-        indexerUri: window.location.origin + "/indexer/api/v4/graphql",
-        indexerWsUri: window.location.origin.replace(/^http/, "ws") + "/indexer/api/v4/graphql/ws",
+        indexerUri: INDEXER_HTTP,
+        indexerWsUri: INDEXER_WS,
         proverServerUri: `${window.location.origin}/proof-server`,
         walletProvider: (chain.providers as any).walletProvider,
         midnightProvider: (chain.providers as any).midnightProvider,
@@ -1121,6 +1140,95 @@ function OperatorPanel({
       setChainError({ op: "v2 nextEpoch", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
+
+/**
+ * A deterministic secret for a seeded contributor.
+ *
+ * The Operator panel seeds demo data, and each person needs a distinct secret.
+ * Deriving it from a label rather than randomly means the operator can put
+ * "person-1" into the ledger, write it down, and reproduce the same person later
+ * — which is what makes the demo repeatable rather than a one-shot.
+ *
+ * This is a DEMO affordance, not the product path: a real employee's secret is
+ * generated on their own device by getOrCreateSecret() and never derived from
+ * anything guessable. Nothing here is used by the worker flow.
+ */
+async function secretFromSeed(seed: string): Promise<Uint8Array> {
+  const data = new TextEncoder().encode(`gotit:operator-seed:v2:${seed}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return new Uint8Array(digest);
+}
+
+const doEnrollV2 = async () => {
+  if (!chain || !v2Address) { onToast("deploy v2 first"); return; }
+  if (!keyValid) { onToast("issuer key invalid — paste 64 hex chars and Save"); return; }
+  setBusy(true);
+  try {
+    const v2 = await import("./lib/midnight.v2");
+    const { memberLeaf2 } = await import("@gotit/shared/hash");
+    const providers = v2.buildV2Providers({
+      indexerUri: INDEXER_HTTP,
+      indexerWsUri: INDEXER_WS,
+      proverServerUri: `${window.location.origin}/proof-server`,
+      walletProvider: (chain.providers as any).walletProvider,
+      midnightProvider: (chain.providers as any).midnightProvider,
+    });
+    const secret = await secretFromSeed(v2Form.seed);
+    await v2.enrollV2(providers, v2Address, {
+      leaf: memberLeaf2(secret),
+      issuerKey: hexToBytes(effectiveKey),
+      secret,
+    });
+    setV2Log((l) => [`enrolled ${v2Form.seed}`, ...l].slice(0, 12));
+    onToast(`${v2Form.seed} enrolled on v2`);
+  } catch (e: any) {
+    console.error("[gotit] v2 enroll failed:", failureReport(e), "\nraw:", e);
+    setChainError({ op: "v2 enroll", report: failureReport(e), raw: safeStringify(e) });
+    onToast(`v2 enroll failed: ${describeFailure(e)}`);
+  } finally { setBusy(false); }
+};
+
+const doSubmitV2 = async () => {
+  if (!chain || !v2Address) { onToast("deploy v2 first"); return; }
+  setBusy(true);
+  try {
+    const v2 = await import("./lib/midnight.v2");
+    const { categoryKeyBytes } = await import("@gotit/shared/hash");
+    const providers = v2.buildV2Providers({
+      indexerUri: INDEXER_HTTP,
+      indexerWsUri: INDEXER_WS,
+      proverServerUri: `${window.location.origin}/proof-server`,
+      walletProvider: (chain.providers as any).walletProvider,
+      midnightProvider: (chain.providers as any).midnightProvider,
+    });
+    const secret = await secretFromSeed(v2Form.seed);
+    await v2.submitV2(providers, v2Address, {
+      categoryKey: categoryKeyBytes(v2Form.category),
+      gender: v2Form.gender,
+      component: v2Form.component,
+      bucket: v2Form.bucket,
+      secret,
+    });
+    setV2Log((l) =>
+      [
+        `submitted ${v2Form.seed}: ${v2Form.category} · ${
+          v2Form.gender === 0 ? "women" : v2Form.gender === 1 ? "men" : "other"
+        } · ${v2Form.component === 0 ? "base" : "variable"} · bucket ${v2Form.bucket}`,
+        ...l,
+      ].slice(0, 12),
+    );
+    // Advance the seed so one click is one person.
+    setV2Form((f) => {
+      const m = f.seed.match(/^(.*?)(\d+)$/);
+      return { ...f, seed: m ? `${m[1]}${Number(m[2]) + 1}` : `${f.seed}-2` };
+    });
+    onToast(`submitted for ${v2Form.seed}`);
+  } catch (e: any) {
+    console.error("[gotit] v2 submit failed:", failureReport(e), "\nraw:", e);
+    setChainError({ op: "v2 submit", report: failureReport(e), raw: safeStringify(e) });
+    onToast(`v2 submit failed: ${describeFailure(e)}`);
+  } finally { setBusy(false); }
+};
 
   const doEnroll = async () => {
     if (!chain || !address) { onToast("deploy first"); return; }
@@ -1283,6 +1391,77 @@ function OperatorPanel({
                   <button className="btn btn-ghost small" onClick={doNextEpochV2} disabled={busy}>
                     Advance reporting period
                   </button>
+                </div>
+              )}
+
+              {v2Address && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                  <div className="small muted" style={{ marginBottom: 8, lineHeight: 1.5 }}>
+                    <b style={{ color: "var(--fg)" }}>Contribute to v2.</b> One seed is one person.
+                    Enroll then submit, and the seed advances so the next click is the next person.
+                    The secret is derived from the seed, so a demo is reproducible.
+                  </div>
+                  <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                    <input
+                      className="input"
+                      style={{ flex: "1 1 130px", minWidth: 120 }}
+                      value={v2Form.seed}
+                      onChange={(e) => setV2Form((f) => ({ ...f, seed: e.target.value }))}
+                      placeholder="person-1"
+                      title="Derives this contributor's secret"
+                    />
+                    <input
+                      className="input"
+                      style={{ flex: "1 1 130px", minWidth: 120 }}
+                      value={v2Form.category}
+                      onChange={(e) => setV2Form((f) => ({ ...f, category: e.target.value }))}
+                      placeholder="engineering"
+                      title="Job category label, max 32 bytes — the ledger stores only its hash"
+                    />
+                    <select
+                      className="input"
+                      value={v2Form.gender}
+                      onChange={(e) => setV2Form((f) => ({ ...f, gender: Number(e.target.value) }))}
+                    >
+                      <option value={0}>Women</option>
+                      <option value={1}>Men</option>
+                      <option value={2}>Other / not disclosed</option>
+                    </select>
+                    <select
+                      className="input"
+                      value={v2Form.component}
+                      onChange={(e) => setV2Form((f) => ({ ...f, component: Number(e.target.value) }))}
+                    >
+                      <option value={0}>Base salary</option>
+                      <option value={1}>Variable / complementary</option>
+                    </select>
+                    <select
+                      className="input"
+                      value={v2Form.bucket}
+                      onChange={(e) => setV2Form((f) => ({ ...f, bucket: Number(e.target.value) }))}
+                      title="Pay band. Base and variable use different scales."
+                    >
+                      {BUCKETS.map((b) => (
+                        <option key={b.id} value={b.id}>{b.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                    <button className="btn small" disabled={busy || !chain} onClick={doEnrollV2}>
+                      Enroll {v2Form.seed}
+                    </button>
+                    <button className="btn btn-primary small" disabled={busy || !chain} onClick={doSubmitV2}>
+                      Submit to v2
+                    </button>
+                  </div>
+                  {v2Log.length > 0 && (
+                    <pre
+                      className="mono small muted"
+                      style={{ marginTop: 8, marginBottom: 0, whiteSpace: "pre-wrap", lineHeight: 1.5, maxHeight: 140, overflow: "auto" }}
+                    >
+                      {v2Log.join("\n")}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>
