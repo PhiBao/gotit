@@ -60,6 +60,16 @@ export function sampleArt9Report(categories: JobCategory[], k = DEFAULT_K): Art9
     period: 1,
     members: total,
     submissions: total,
+    // Mirrors what the contract would report for this fabricated data.
+    inventory: {
+      groups: [...sizes.entries()].map(([keyHex, size]) => ({ keyHex, size })),
+      totalParticipants: total,
+      publishable: [...sizes.values()].filter((n) => n >= k).length,
+      members: total,
+      submissions: total,
+      epoch: 1,
+      k,
+    },
   };
 
   const bundle = assembleArt9Report({

@@ -59,6 +59,18 @@ function readingFor(opts: {
     period: opts.period ?? 1,
     members: opts.members ?? total,
     submissions: opts.submissions ?? total,
+    // Fabricated ledger inventory consistent with the sizes above.
+    inventory: {
+      groups: [...sizes.entries()]
+        .filter(([, n]) => n > 0)
+        .map(([keyHex, size]) => ({ keyHex, size })),
+      totalParticipants: total,
+      publishable: [...sizes.values()].filter((n) => n >= (opts.k ?? DEFAULT_K)).length,
+      members: opts.members ?? total,
+      submissions: opts.submissions ?? total,
+      epoch: opts.period ?? 1,
+      k: opts.k ?? DEFAULT_K,
+    },
   };
 }
 

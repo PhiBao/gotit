@@ -30,6 +30,8 @@ import {
 import { assembleArt9Report, type Art9ReportBundle } from "./art9";
 import { connectGatedReader } from "./midnight.v2";
 import { crossCheckGroup } from "./gatedLogic";
+import { inventoryChain } from "./inventory";
+import { decodeV2State } from "./midnight.v2";
 import { INDEXER_HTTP as indexerHttp, INDEXER_WS as indexerWs } from "./indexerConfig";
 
 const ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
@@ -148,6 +150,9 @@ export async function buildV2Report(
       period: shape.epoch,
       members: shape.members,
       submissions: shape.submissions,
+      // Counted from public state without reference to any label, so the page can
+      // distinguish "empty ledger" from "submitted under other labels".
+      inventory: inventoryChain(decodeV2State(shape.raw), { k, epoch: shape.epoch }),
     },
     periodLabel,
     generatedAt: new Date().toISOString().slice(0, 10),

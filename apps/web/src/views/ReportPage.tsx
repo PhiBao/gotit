@@ -341,13 +341,69 @@ export default function ReportPage() {
           )}
 
           {state.bundle.report.rows.length === 0 && (
-            <div className="card card-pad" style={{ marginTop: 16 }}>
+            <div
+              className="card card-pad"
+              style={{
+                marginTop: 16,
+                borderColor:
+                  state.bundle.verdict.kind === "label-mismatch" ? "#713f12" : "var(--line)",
+              }}
+            >
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Nothing publishable this period</div>
-              <div className="muted" style={{ lineHeight: 1.55 }}>
-                {state.bundle.submissions === 0
-                  ? "This contract has no submissions on it at all. That is the honest state of the ledger, and a report built from it would imply coverage nobody has created."
-                  : `${state.bundle.submissions} submission(s) exist on this contract, but none of them fall into the category labels listed above — so every row reads empty. The ledger keys a group by hash(label), and a submission filed under a different label is a different hash. Press Categories and add the label you submitted under.`}
+              <div
+                className="muted"
+                style={{
+                  lineHeight: 1.55,
+                  color: state.bundle.verdict.kind === "label-mismatch" ? "#fcd34d" : undefined,
+                }}
+              >
+                {state.bundle.verdict.headline}
               </div>
+              {state.bundle.verdict.action && (
+                <div className="muted" style={{ lineHeight: 1.55, marginTop: 6 }}>
+                  {state.bundle.verdict.action}
+                </div>
+              )}
+
+              {/*
+                What the contract holds, counted from public state with no
+                reference to any label. This is the evidence behind the sentence
+                above: participants on chain but no matching group means the
+                figures are there and unreadable, not absent — a distinction the
+                report could not previously make.
+              */}
+              {state.bundle.inventory.totalParticipants > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                  <div className="small" style={{ marginBottom: 6 }}>
+                    On this contract, counted independently of any label:
+                  </div>
+                  <div className="mono small muted" style={{ lineHeight: 1.7 }}>
+                    <div>{state.bundle.inventory.members} enrolled member(s)</div>
+                    <div>{state.bundle.inventory.submissions} submission(s)</div>
+                    <div>
+                      {state.bundle.inventory.groups.length} reporting group(s) holding data,{" "}
+                      {state.bundle.inventory.publishable} at or above k=
+                      {state.bundle.inventory.k}
+                    </div>
+                    <div>
+                      participants in total: {state.bundle.inventory.totalParticipants}
+                    </div>
+                  </div>
+                  <details style={{ marginTop: 8 }}>
+                    <summary className="muted small" style={{ cursor: "pointer" }}>
+                      group sizes (not labels — the ledger stores hashes, so these cannot be reversed)
+                    </summary>
+                    <pre
+                      className="mono small muted"
+                      style={{ marginTop: 6, marginBottom: 0, whiteSpace: "pre-wrap", lineHeight: 1.5 }}
+                    >
+                      {state.bundle.inventory.groups
+                        .map((g, i) => `group ${i + 1}: ${g.size} participant(s)${g.size >= state.bundle.inventory.k ? " (publishable)" : " (below k)"}`)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                </div>
+              )}
             </div>
           )}
 

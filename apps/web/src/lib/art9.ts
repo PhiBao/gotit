@@ -33,6 +33,18 @@ import {
   type JobCategory,
   type ReportingGroupKey,
 } from "./groups";
+import { decodeV2State } from "./midnight.v2";
+import {
+  inventoryChain,
+  judgeInventory,
+  type ChainInventory,
+  type InventoryVerdict,
+} from "./inventory";
+
+/** How many configured groups hold any data at all, matching or not. */
+function populatedReportGroups(reading: ChainGroupReading, groups: ReportingGroupKey[]): number {
+  return groups.filter((g) => (reading.sizes.get(groupKeyHex(g)) ?? 0) > 0).length;
+}
 
 export type ChainGroupReading = {
   /** Bucket counts per group, as returned by the contract read path. */
@@ -46,10 +58,21 @@ export type ChainGroupReading = {
   /** Members and submissions, for coverage. */
   members: number;
   submissions: number;
+  /**
+   * What the contract actually holds, counted without reference to any label.
+   *
+   * Needed because an empty report has two causes that look identical: an empty
+   * ledger, or submissions filed under labels this report is not looking for.
+   * `groupCount` is public, so it can be counted — and the count is what tells
+   * them apart.
+   */
+  inventory: ChainInventory;
 };
 
 export type Art9ReportBundle = {
   report: PayGapReport;
+  /** Why the report looks the way it does, when it has no rows. */
+  verdict: InventoryVerdict;
   markdown: string;
   json: string;
   k: number;
@@ -62,6 +85,15 @@ export type Art9ReportBundle = {
   suppressedGroups: number;
   members: number;
   submissions: number;
+  /**
+   * What the contract actually holds, counted without reference to any label.
+   *
+   * Needed because an empty report has two causes that look identical: an empty
+   * ledger, or submissions filed under labels this report is not looking for.
+   * `groupCount` is public, so it can be counted — and the count is what tells
+   * them apart.
+   */
+  inventory: ChainInventory;
 };
 
 /**
@@ -201,8 +233,11 @@ export function assembleArt9Report(opts: {
       "source of a published figure.",
   );
 
+  const verdict = judgeInventory(reading.inventory, populatedReportGroups(reading, groups));
+
   return {
     report,
+    verdict,
     markdown: engineRenderMarkdown(report),
     json: engineReportToJson(report),
     k,
@@ -212,6 +247,7 @@ export function assembleArt9Report(opts: {
     suppressedGroups: totalConfigured - publishable,
     members: reading.members,
     submissions: reading.submissions,
+    inventory: reading.inventory,
   };
 }
 
@@ -239,6 +275,7 @@ export function readingFromLedger(
     period: opts.period,
     members: opts.members,
     submissions: opts.submissions,
+    inventory: inventoryChain(decodeV2State(ledgerState), { k: opts.k, epoch: opts.period }),
   };
 }
 
