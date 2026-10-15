@@ -331,12 +331,36 @@ function GotItApp() {
                 Reset sample data
               </button>
             )}
+            {/*
+              The wallet state is ONE badge, styled like every other badge in the
+              header, and the instruction lives in the button's tooltip and in the
+              dialog. Before this the hint was loose amber text next to an amber
+              button — two things in the same colour saying the same thing, which
+              read as a rendering bug.
+            */}
             {!chain && walletHint(connectPhase, laceReady) && (
               <span
-                className="small"
-                style={{ color: connectPhase?.kind === "needs-attention" ? "#fcd34d" : "var(--muted)", maxWidth: 260 }}
+                className="badge"
+                title={walletHint(connectPhase, laceReady) ?? undefined}
+                style={
+                  connectPhase?.kind === "needs-attention" || connectPhase?.kind === "rejected"
+                    ? { borderColor: "#713f12", background: "#1a1500" }
+                    : undefined
+                }
               >
-                {walletHint(connectPhase, laceReady)}
+                <span
+                  className="mono small"
+                  style={connectPhase?.kind === "needs-attention" ? { color: "#fcd34d" } : undefined}
+                >
+                  wallet
+                </span>{" "}
+                <strong>
+                  {connectPhase?.kind === "needs-attention"
+                    ? "needs attention"
+                    : connectPhase?.kind === "rejected"
+                      ? "declined"
+                      : "not connected"}
+                </strong>
               </span>
             )}
             {chain ? (

@@ -51,6 +51,19 @@ export type V2StateShape = {
   k: number;
 };
 
+/**
+ * The contract's raw group counts, keyed by hex.
+ *
+ * Exposed for the label finder: because a group is keyed by hash(label), the only
+ * way to discover which labels a contract holds is to test candidates against
+ * these keys. See lib/labelFinder.ts.
+ */
+export async function readV2GroupCounts(contractAddress: string): Promise<Map<string, number>> {
+  const shape = (await readV2Shape(contractAddress)) as V2StateShape & { raw: unknown };
+  const { groupCountsFromLedger } = await import("./labelFinder");
+  return groupCountsFromLedger(decodeV2State(shape.raw));
+}
+
 /** Read the v2 ledger's shape. Uses the generated v2 decoder. */
 export async function readV2Shape(contractAddress: string): Promise<V2StateShape> {
   const state = await withTimeout(

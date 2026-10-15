@@ -18,6 +18,7 @@ import {
   usedCategories,
   parseCategoryText,
 } from "../lib/categoryStore";
+import { searchLabels, suggestedCandidates, type LabelSearchResult } from "../lib/labelFinder";
 import { GENDER, COMPONENT, GENDER_LABEL, COMPONENT_LABEL, DEFAULT_K } from "@gotit/shared/paygap";
 
 /**
@@ -71,6 +72,48 @@ export default function ReportPage() {
   );
   const [showSetup, setShowSetup] = useState(false);
   const [setupProblems, setSetupProblems] = useState<string[]>([]);
+  /**
+   * The label finder.
+   *
+   * A group is keyed by hash(label) and no name is stored, so when a report finds
+   * nothing the chain cannot say which labels ARE present. A candidate can be
+   * tested though, which is the difference between "no data" and "that label
+   * exists, under Women/Base, with 5 people".
+   */
+  const [finderText, setFinderText] = useState("");
+  const [finderResults, setFinderResults] = useState<LabelSearchResult[] | null>(null);
+  const [finderBusy, setFinderBusy] = useState(false);
+  const [finderError, setFinderError] = useState<string | null>(null);
+
+  const runFinder = async (extra?: string) => {
+    if (!address) return;
+    const candidates = suggestedCandidates(
+      categories.map((c) => c.label),
+      [...usedCategories(), ...(extra ?? finderText).split(/[\n,]/).map((x) => x.trim()).filter(Boolean)],
+    );
+    setFinderBusy(true);
+    setFinderError(null);
+    try {
+      const { readV2GroupCounts } = await import("../lib/reportRead.v2");
+      const counts = await readV2GroupCounts(address);
+      const { searchLabels } = await import("../lib/labelFinder");
+      setFinderResults(searchLabels(candidates, counts));
+    } catch (e) {
+      setFinderError(e instanceof Error ? e.message : "could not read the contract");
+      setFinderResults(null);
+    } finally {
+      setFinderBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    // Run it whenever the report comes back empty, because that is exactly when
+    // the user needs to know whether their label is on chain.
+    if (state.kind === "ready" && state.bundle.report.rows.length === 0 && address) {
+      void runFinder();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.kind]);
   const [illustrative, setIllustrative] = useState<boolean>(() => {
     try {
       return location.hash
@@ -372,6 +415,91 @@ export default function ReportPage() {
                 figures are there and unreadable, not absent — a distinction the
                 report could not previously make.
               */}
+              {/*
+                The label finder. Shown whenever the report is empty, because the
+                only cause the chain cannot name is the one that looks like no data.
+              */}
+              {address && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                  <div className="small" style={{ marginBottom: 6, fontWeight: 600 }}>
+                    Which categories does this contract actually hold?
+                  </div>
+                  <div className="small muted" style={{ lineHeight: 1.55, marginBottom: 8 }}>
+                    The ledger stores <code>hash(label)</code> and no names, so it cannot tell you
+                    what to look for — but it can confirm a guess. Type labels you might have used,
+                    one per line, and the ones that exist on chain will be listed with their
+                    headcounts.
+                  </div>
+                  <textarea
+                    value={finderText}
+                    onChange={(e) => setFinderText(e.target.value)}
+                    rows={3}
+                    placeholder={"engineering\nEntrepreneur/Dr..\nsales"}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--line)",
+                      background: "var(--panel2)",
+                      color: "var(--text)",
+                      fontFamily: "var(--mono)",
+                      fontSize: 13,
+                    }}
+                  />
+                  <div className="row" style={{ gap: 8, marginTop: 8 }}>
+                    <button className="btn small" onClick={() => void runFinder()} disabled={finderBusy}>
+                      {finderBusy ? "Checking…" : "Check these labels"}
+                    </button>
+                    {finderResults?.some((r) => r.matched) && (
+                      <button
+                        className="btn btn-primary small"
+                        onClick={() => {
+                          const found = finderResults.filter((r) => r.matched).map((r) => r.label);
+                          setCategoriesText([...new Set([...categories.map((c) => c.label), ...found])].join("\n"));
+                          setShowSetup(true);
+                        }}
+                      >
+                        Add the matching labels to the report
+                      </button>
+                    )}
+                  </div>
+                  {finderError && (
+                    <div className="small" style={{ color: "#fca5a5", marginTop: 8 }}>{finderError}</div>
+                  )}
+                  {finderResults && (
+                    <div style={{ marginTop: 10 }}>
+                      {finderResults.filter((r) => r.matched).length === 0 ? (
+                        <div className="small muted" style={{ lineHeight: 1.55 }}>
+                          None of those labels are on this contract. That means the submissions were
+                          made under some other label, or to a different contract — check the address
+                          above.
+                        </div>
+                      ) : (
+                        finderResults
+                          .filter((r) => r.matched)
+                          .map((r) => (
+                            <div key={r.label} className="small" style={{ marginBottom: 6, lineHeight: 1.5 }}>
+                              <code style={{ color: "var(--green)" }}>{r.label}</code>{" "}
+                              — {r.participants} participant(s) across {r.groupsPresent} group(s)
+                              <div className="muted mono" style={{ paddingLeft: 12 }}>
+                                {r.probes
+                                  .filter((p) => p.present)
+                                  .map(
+                                    (p) =>
+                                      `${p.gender === 0 ? "women" : p.gender === 1 ? "men" : "other"} / ${
+                                        p.component === 0 ? "base" : "variable"
+                                      }: ${p.size}`,
+                                  )
+                                  .join("  ·  ")}
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {state.bundle.inventory.totalParticipants > 0 && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
                   <div className="small" style={{ marginBottom: 6 }}>

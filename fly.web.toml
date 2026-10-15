@@ -5,7 +5,14 @@ primary_region = "iad"
   dockerfile = "deploy/web.Dockerfile"
 
   [build.args]
+    # Wave 1 contract, deployed on Preprod. Also the fallback the report page uses
+    # to explain itself when no v2 contract is configured.
     VITE_CONTRACT_ADDRESS = "e7cf6ffc48ebeb450813104e6a5ab3d585f7e275bcd32e5ea82eb7a8c21dd53d"
+    # Wave 2 contract, deployed on Preprod 2026-10-15. Baked in rather than left in
+    # localStorage, because localStorage does not travel: a second browser saw
+    # "no contract configured" while the data sat on chain, which reads as a broken
+    # app rather than a missing setting. Every visitor now sees the same contract.
+    VITE_CONTRACT_ADDRESS_V2 = "92fb35dbabd74dc97222c0ce5f7b72f2aed83c6c7d264a5ef94431199720c0d0"
     VITE_ISSUER_KEY = "9aa3811d959df5e7f924d7d487bb4611509bb286181f85144a2cc2c203b2ef1e"
     VITE_HOSTED_PROVER = "true"
     # Blockfrost's Midnight API path. Change to /api/v4/graphql (and the two WS
