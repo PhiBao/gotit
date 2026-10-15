@@ -20,6 +20,7 @@ import { CompiledContract } from "@midnight-ntwrk/midnight-js-protocol/compact-j
 import type { PrivateStateProvider } from "@midnight-ntwrk/midnight-js-types";
 import { inMemoryPrivateStateProvider } from "./privateState";
 import { BUCKET_COUNT } from "@gotit/shared";
+import { extractContractAddress } from "./deployResult";
 import { Contract as GotItV2Contract } from "@gotit/contract/managed/gotit/contract";
 import { witnesses, createPrivateState, type GotItPrivateState } from "@gotit/contract/witnesses-v2";
 import { issuerCommitment2 } from "@gotit/shared/hash";
@@ -96,7 +97,7 @@ export async function deployV2(
     initialPrivateState: ps,
     args: [issuerCommitment2(issuerKey), BigInt(kThreshold)],
   } as any);
-  return (deployed as any).contractAddress;
+  return extractContractAddress(deployed).address;
 }
 
 /**

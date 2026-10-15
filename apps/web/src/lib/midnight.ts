@@ -33,6 +33,8 @@ import { Contract as GotItContract } from "@gotit/contract/managed/candor/contra
 import { witnesses, createPrivateState, type GotItPrivateState } from "@gotit/contract/witnesses";
 import { issuerCommitment } from "@gotit/shared/hash";
 import { inMemoryPrivateStateProvider } from "./privateState";
+import { deployedAddress } from "./deployResult";
+export { deployedAddress };
 
 export type GotItCircuitId = "submit" | "enroll" | "nextEpoch" | "getHistogram" | "readEpoch";
 

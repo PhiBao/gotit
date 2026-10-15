@@ -1029,11 +1029,14 @@ function OperatorPanel({
     if (!keyValid) { onToast(`issuer key invalid (${clean.length} chars) — paste 64 hex chars and Save`); return; }
     setBusy(true);
     try {
-      const { deployGotIt } = await midnightLib();
+      const { deployGotIt, deployedAddress } = await midnightLib();
       const deployed = await deployGotIt(chain.providers, hexToBytes(clean));
-      const addr = (deployed.deployTxData as any).public?.contractAddress;
-      if (addr) { onAddress(addr); onToast(`Deployed at ${addr}`); }
-      else onToast("Deployed — check Lace for the address");
+      // Throws rather than falling back to "check Lace": a deploy that
+      // succeeded but lost its address is worse than one that failed loudly,
+      // because the operator cannot tell whether they have a contract.
+      const addr = deployedAddress(deployed);
+      onAddress(addr);
+      onToast(`Deployed at ${addr}`);
     } catch (e: any) {
       console.error("[gotit] deploy failed:", failureReport(e), "\nraw:", e);
       onToast(`deploy failed: ${describeFailure(e)}`);
@@ -1077,6 +1080,11 @@ function OperatorPanel({
         midnightProvider: (chain.providers as any).midnightProvider,
       });
       const addr = await v2.deployV2(providers, hexToBytes(clean), DEFAULT_K);
+      if (!/^[0-9a-fA-F]{64}$/.test(addr.replace(/^0x/, ""))) {
+        // Never store a malformed address: it would be read back later as a
+        // contract that does not exist, and the report would blame the ledger.
+        throw new Error(`deploy returned an unusable address (${JSON.stringify(addr)})`);
+      }
       setV2Address(addr);
       setStoredV2ContractAddress(addr);
       onToast(`v2 deployed at ${addr} (k=${DEFAULT_K}). Use it as the report source.`);
