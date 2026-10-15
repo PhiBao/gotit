@@ -120,3 +120,20 @@ describe("v1 uses the same rule", () => {
     expect(() => deployedAddress({ deployTxData: { public: {} } })).toThrow(/could not be read/);
   });
 });
+
+describe("a malformed stored address is not a contract", () => {
+  // The exact value that got written: deployV2 returned undefined, the UI did
+  // setStoredV2ContractAddress(undefined), and the report page then tried to
+  // decode the V1 contract as a V2 ledger. The stored junk has to be ignored on
+  // read as well as refused on write, because it is already in people's browsers.
+  it("rejects every value that is not 64 hex", () => {
+    for (const bad of ["undefined", "null", "", "0x", "abc", "a".repeat(63), "a".repeat(65), "zz".repeat(32)]) {
+      expect(isPlausibleAddress(bad)).toBe(false);
+    }
+  });
+
+  it("accepts a real address so the guard is not vacuous", () => {
+    expect(isPlausibleAddress("a".repeat(64))).toBe(true);
+    expect(isPlausibleAddress(`0x${"b".repeat(64)}`)).toBe(true);
+  });
+});

@@ -613,6 +613,7 @@ function GotItApp() {
           onClose={() => setOperatorOpen(false)}
           onToast={showToast}
           onAddress={setStoredContractAddress}
+          onV2Address={setStoredV2ContractAddress}
         />
       )}
     </div>
@@ -983,11 +984,15 @@ function OperatorPanel({
   onClose,
   onToast,
   onAddress,
+  onV2Address,
 }: {
   chain: { providers: GotItProviders } | null;
   onClose: () => void;
   onToast: (msg: string) => void;
+  /** Writes the v1 contract address (the Wave 1 ledger). */
   onAddress: (addr: string) => void;
+  /** Writes the v2 contract address (the Art. 9 ledger the report reads). */
+  onV2Address: (addr: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   /**
@@ -1086,7 +1091,7 @@ function OperatorPanel({
         throw new Error(`deploy returned an unusable address (${JSON.stringify(addr)})`);
       }
       setV2Address(addr);
-      setStoredV2ContractAddress(addr);
+      setStoredV2ContractAddress(addr); // the report reads this key
       onToast(`v2 deployed at ${addr} (k=${DEFAULT_K}). Use it as the report source.`);
     } catch (e: any) {
       console.error("[gotit] v2 deploy failed:", failureReport(e), "\nraw:", e);
@@ -1263,7 +1268,16 @@ function OperatorPanel({
 
               {v2Address && (
                 <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                  <button className="btn small" onClick={() => { onAddress(v2Address); onToast("Report will read the v2 contract"); }}>
+                  <button
+                    className="btn small"
+                    onClick={() => {
+                      // The report reads the V2 key. Writing the v1 key here — which is
+                      // what this button used to do — left the report reading Wave 1
+                      // state under a v2 heading.
+                      onV2Address(v2Address);
+                      onToast("Report will read the v2 contract");
+                    }}
+                  >
                     Use v2 as the report source
                   </button>
                   <button className="btn btn-ghost small" onClick={doNextEpochV2} disabled={busy}>

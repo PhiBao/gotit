@@ -35,6 +35,30 @@ export function isLaceAvailable(): boolean {
 }
 
 /** Read a key, transparently falling back to its pre-rename `candor:` form. */
+/**
+ * A stored contract address, or null.
+ *
+ * Validated rather than trusted, because a bad value got stored once and then
+ * read back as a real address. `deployV2` returned `undefined`, the UI did
+ * `setStoredV2ContractAddress(undefined)`, and the report page then tried to
+ * decode the V1 contract as a V2 ledger — surfacing as "index out of bounds in
+ * idx: 5 >= 5", which blames the chain for a value the app wrote itself.
+ *
+ * The deploy path now refuses to store a malformed address, and this is the
+ * second line of defence: a value already in someone's localStorage from before
+ * that fix must not be treated as a contract.
+ */
+function readValidatedAddress(key: string): string | null {
+  const raw = readStorage(key);
+  if (raw === null) return null;
+  const clean = raw.replace(/^0x/, "").trim();
+  if (/^[0-9a-fA-F]{64}$/.test(clean)) return clean;
+  // Present but unusable. Log it once so the cause is visible rather than
+  // silently ignored, and treat the deployment as unconfigured.
+  console.warn(`[gotit] ignoring stored address for ${key}: not a contract address (${JSON.stringify(raw)})`);
+  return null;
+}
+
 function readStorage(key: string): string | null {
   try {
     const now = localStorage.getItem(key);
@@ -56,11 +80,26 @@ function safeSessionSet(key: string, val: string) {
 }
 
 export function getStoredContractAddress(): string | null {
-  return readStorage(ADDR_KEY) || BAKED_ADDRESS || null;
+  return readValidatedAddress(ADDR_KEY) ?? validateBaked(BAKED_ADDRESS, "VITE_CONTRACT_ADDRESS");
+}
+
+/** Baked addresses come from the build, so a malformed one is a build error. */
+function validateBaked(value: string, name: string): string | null {
+  if (!value) return null;
+  const clean = value.replace(/^0x/, "").trim();
+  if (/^[0-9a-fA-F]{64}$/.test(clean)) return clean;
+  console.warn(`[gotit] ${name} is not a contract address; ignoring (${JSON.stringify(value)})`);
+  return null;
 }
 
 export function setStoredContractAddress(address: string): void {
-  try { localStorage.setItem(ADDR_KEY, address); } catch {}
+  // Guard the write as well as the read: storing "undefined" is how a missing
+  // address turned into a contract that does not exist.
+  if (!/^[0-9a-fA-F]{64}$/.test(String(address).replace(/^0x/, ""))) {
+    console.warn(`[gotit] refusing to store a malformed contract address (${JSON.stringify(address)})`);
+    return;
+  }
+  try { localStorage.setItem(ADDR_KEY, String(address).replace(/^0x/, "")); } catch {}
 }
 
 /**
@@ -71,11 +110,15 @@ export function setStoredContractAddress(address: string): void {
  * report at a ledger that happens to be empty.
  */
 export function getStoredV2ContractAddress(): string | null {
-  return readStorage(V2_ADDR_KEY) || BAKED_V2_ADDRESS || null;
+  return readValidatedAddress(V2_ADDR_KEY) ?? validateBaked(BAKED_V2_ADDRESS, "VITE_CONTRACT_ADDRESS_V2");
 }
 
 export function setStoredV2ContractAddress(address: string): void {
-  try { localStorage.setItem(V2_ADDR_KEY, address); } catch {}
+  if (!/^[0-9a-fA-F]{64}$/.test(String(address).replace(/^0x/, ""))) {
+    console.warn(`[gotit] refusing to store a malformed v2 address (${JSON.stringify(address)})`);
+    return;
+  }
+  try { localStorage.setItem(V2_ADDR_KEY, String(address).replace(/^0x/, "")); } catch {}
 }
 
 

@@ -5,7 +5,7 @@ import {
   type Art9ReportBundle,
 } from "../lib/art9";
 import { allGroups, bucketLabels, type JobCategory } from "../lib/groups";
-import { getStoredContractAddress } from "../lib/session";
+import { getStoredContractAddress, getStoredV2ContractAddress } from "../lib/session";
 import { GENDER, COMPONENT, GENDER_LABEL, COMPONENT_LABEL, DEFAULT_K } from "@gotit/shared/paygap";
 
 /**
@@ -56,7 +56,19 @@ export default function ReportPage() {
     }
   });
 
-  const address = getStoredContractAddress();
+  /**
+   * The v2 address, falling back to v1 ONLY so the error can explain itself.
+   *
+   * This is a v2 surface — it reads `groupCount`, `kThreshold` and the Art. 9
+   * dimensions, none of which the Wave 1 ledger has. Reading the v1 address here
+   * meant the page handed Wave 1 state to a v2 decoder, which failed with
+   * "index out of bounds in idx: 5 >= 5" and pointed at the chain rather than at
+   * the configuration. The fallback exists so that case produces an explanation
+   * instead of a decoder error.
+   */
+  const v2Address = getStoredV2ContractAddress();
+  const v1Address = getStoredContractAddress();
+  const address = v2Address ?? v1Address;
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -84,13 +96,23 @@ export default function ReportPage() {
       assertNoSmallCellLeak(bundle.report, bundle.k);
       setState({ kind: "ready", bundle, fingerprint, illustrative: false });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "read failed";
+      const raw = e instanceof Error ? e.message : "read failed";
+      // Classify rather than dump. "index out of bounds in idx: 5 >= 5" is a
+      // decoder complaining about foreign state, which reads as a chain problem
+      // when the cause is a contract from a different revision — or, once, the
+      // literal string "undefined" stored as an address.
+      const v1State = /index out of bounds|invalid operation for type|groupCount|kThreshold/i.test(raw);
+      const notFound = /not found|no matching|no readable|state not found/i.test(raw);
       setState({
         kind: "error",
-        message,
-        hint: /not found|no matching|state/i.test(message)
-          ? "The configured contract has no readable public state. If this is the Wave 1 contract, it predates the Art. 9 dimensions — deploy the v2 contract from the Operator console."
-          : undefined,
+        message: v1State
+          ? "This contract's ledger does not have the Art. 9 dimensions (job category × gender × base/variable). It is almost certainly the Wave 1 contract, which predates them."
+          : raw,
+        hint: v1State
+          ? "Deploy the v2 contract from the Operator console and press \"Use v2 as the report source\". Nothing is shown here rather than v1 numbers under a v2 heading."
+          : notFound
+            ? "The configured contract has no readable public state. Check the address, or deploy the v2 contract from the Operator console."
+            : `Report generation failed before any figure was produced. Raw error: ${raw}`,
       });
     }
   }, [address, categories, illustrative]);
@@ -365,7 +387,8 @@ function VerifyBox({ fingerprint }: { fingerprint: string }) {
   const [input, setInput] = useState(fingerprint);
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const address = getStoredContractAddress();
+  // Same address rule as the report it verifies.
+  const address = getStoredV2ContractAddress() ?? getStoredContractAddress();
 
   useEffect(() => setInput(fingerprint), [fingerprint]);
 
