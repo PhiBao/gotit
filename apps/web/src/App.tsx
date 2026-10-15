@@ -25,7 +25,7 @@ import {
 } from "./lib/ledger";
 import { requestCode, confirmCode, enrollLeaf } from "./lib/issuer";
 import type { GotItProviders } from "./lib/midnight";
-import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
+import { describeFailure, failureReport, safeStringify, friendlyChainError } from "./lib/effectError";
 import type { IndexerReport } from "./lib/indexerStatus";
 import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH, INDEXER_HTTP, INDEXER_WS } from "./lib/indexerConfig";
 import { WalletGate, walletHint } from "./views/WalletGate";
@@ -1136,7 +1136,7 @@ function OperatorPanel({
       onToast(`v2 deployed at ${addr} (k=${DEFAULT_K}). Use it as the report source.`);
     } catch (e: any) {
       console.error("[gotit] v2 deploy failed:", failureReport(e), "\nraw:", e);
-      onToast(`v2 deploy failed: ${describeFailure(e)}`);
+      onToast(friendlyChainError(e, "v2 deploy"));
       setChainError({ op: "v2 deploy", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
@@ -1158,7 +1158,7 @@ function OperatorPanel({
       onToast("Reporting period advanced — everyone may contribute once more");
     } catch (e: any) {
       console.error("[gotit] v2 nextEpoch failed:", failureReport(e), "\nraw:", e);
-      onToast(`nextEpoch failed: ${describeFailure(e)}`);
+      onToast(friendlyChainError(e, "v2 nextEpoch"));
       setChainError({ op: "v2 nextEpoch", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };
@@ -1206,7 +1206,7 @@ const doEnrollV2 = async () => {
   } catch (e: any) {
     console.error("[gotit] v2 enroll failed:", failureReport(e), "\nraw:", e);
     setChainError({ op: "v2 enroll", report: failureReport(e), raw: safeStringify(e) });
-    onToast(`v2 enroll failed: ${describeFailure(e)}`);
+    onToast(friendlyChainError(e, "v2 enroll"));
   } finally { setBusy(false); }
 };
 
@@ -1248,7 +1248,7 @@ const doSubmitV2 = async () => {
   } catch (e: any) {
     console.error("[gotit] v2 submit failed:", failureReport(e), "\nraw:", e);
     setChainError({ op: "v2 submit", report: failureReport(e), raw: safeStringify(e) });
-    onToast(`v2 submit failed: ${describeFailure(e)}`);
+    onToast(friendlyChainError(e, "v2 submit"));
   } finally { setBusy(false); }
 };
 
@@ -1266,7 +1266,7 @@ const doSubmitV2 = async () => {
       onToast("Member enrolled on-chain");
     } catch (e: any) {
       console.error("[gotit] enroll failed:", failureReport(e), "\nraw:", e);
-      onToast(`enroll failed: ${describeFailure(e)}`);
+      onToast(friendlyChainError(e, "enroll"));
       setChainError({ op: "enroll", report: failureReport(e), raw: safeStringify(e) });
     } finally { setBusy(false); }
   };

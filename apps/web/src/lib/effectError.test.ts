@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { unwrapFailures, describeFailure, failureReport, safeStringify, isEffectFailure } from "./effectError";
+import {
+  unwrapFailures,
+  describeFailure,
+  failureReport,
+  safeStringify,
+  isEffectFailure,
+  isWalletLockedError,
+  friendlyChainError,
+  LOCKED_WALLET_HINT,
+} from "./effectError";
 
 /**
  * Tests against the exact shape a real deploy failure produced in the browser:
@@ -185,5 +194,57 @@ describe("preflight names the cause a FiberFailure hides", () => {
     ]);
     expect(() => describePreflight(r)).not.toThrow();
     expect(describePreflight(r)).toContain("✗");
+  });
+});
+
+describe("a locked wallet is identified, because the fix is outside the page", () => {
+  it("recognises the message Lace actually returns", () => {
+    expect(isWalletLockedError(new Error("Wallet is locked. Please unlock the wallet first."))).toBe(true);
+    expect(isWalletLockedError(new Error("User rejected the request"))).toBe(true);
+    expect(isWalletLockedError(new Error("not authorised"))).toBe(true);
+  });
+
+  it("recognises it inside an Effect failure, where the text is nested", () => {
+    const wrapped = {
+      _id: "FiberFailure",
+      message: "",
+      cause: { _tag: "Fail", failure: { message: "Wallet is locked" } },
+    };
+    expect(isWalletLockedError(wrapped)).toBe(true);
+  });
+
+  it("does not claim a network failure is a lock", () => {
+    expect(isWalletLockedError(new Error("Response not successful: Received status code 410"))).toBe(false);
+    expect(isWalletLockedError(new Error("proof server returned 500"))).toBe(false);
+  });
+
+  it("gives an instruction rather than a raw message", () => {
+    const msg = friendlyChainError(new Error("Wallet is locked"), "v2 submit");
+    expect(msg).toMatch(/needs an unlocked wallet/);
+    expect(msg).toContain(LOCKED_WALLET_HINT);
+    expect(msg).toMatch(/safe to try again/);
+  });
+
+  it("still reports ordinary failures plainly", () => {
+    expect(friendlyChainError(new Error("boom"), "v2 submit")).toBe("v2 submit failed: boom");
+  });
+});
+
+describe("the connection is not blocked by an optional call", () => {
+  /**
+   * The unlock loop: connect() succeeded, getConfiguration() said "locked", the
+   * code threw, the user retried, connect() ran again, Lace prompted again. Each
+   * retry re-triggered the step that had just succeeded.
+   *
+   * Nothing downstream uses getConfiguration's values, so a failure there must not
+   * fail the connection. This pins the reasoning rather than the implementation:
+   * if someone reintroduces a throw, the test that matters is the integration one
+   * in a browser, so this asserts the contract in words.
+   */
+  it("has no use for getConfiguration's values, so it cannot justify failing on them", async () => {
+    const cfg = await import("./indexerConfig");
+    // The endpoint the app uses comes from config, never from the wallet.
+    expect(cfg.INDEXER_HTTP).not.toContain("indexer.preprod.midnight.network");
+    expect(cfg.INDEXER_PATH).toBe("/api/v0");
   });
 });

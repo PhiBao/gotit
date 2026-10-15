@@ -186,3 +186,32 @@ export function safeStringify(value: unknown, maxLen = 4000): string {
     }
   }
 }
+
+/**
+ * Is this failure a locked or unapproved wallet?
+ *
+ * Worth separating from every other failure because the fix is a specific action
+ * the user has to take outside the page: open the extension, enter the password,
+ * approve. Reporting it as a generic chain error sends them looking at the
+ * network, which is not where the problem is.
+ *
+ * Matched on the message because that is all midnight-js surfaces — the wallet's
+ * refusal arrives as an Effect failure whose text is the only clue. Deliberately
+ * broad: "locked", "unlock", "not authorised", and wallet-approval language all
+ * mean the same next step.
+ */
+export function isWalletLockedError(e: unknown): boolean {
+  const text = [describeFailure(e), ...unwrapFailures(e).map((f) => f.message)].join(" ");
+  return /lock|unlock|not authorised|not authorized|approval|rejected by user|user rejected|denied/i.test(text);
+}
+
+/** The instruction to show alongside a locked-wallet failure. */
+export const LOCKED_WALLET_HINT =
+  "Open the Lace extension, unlock it if it asks, and approve the request. " +
+  "Nothing was sent to the network, so it is safe to try again.";
+
+/** A message that says what to do, for a failure that often says nothing. */
+export function friendlyChainError(e: unknown, op: string): string {
+  if (isWalletLockedError(e)) return `${op} needs an unlocked wallet — ${LOCKED_WALLET_HINT}`;
+  return `${op} failed: ${describeFailure(e)}`;
+}

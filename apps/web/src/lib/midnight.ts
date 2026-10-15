@@ -181,9 +181,21 @@ export async function connectGotIt(
   setNetworkId(networkId);
   const connectedAPI = preConnected ?? (await connectToWallet(networkId));
 
-  // The wallet's own view of the network. Informational: used to warn about a
-  // mismatch, never to choose an endpoint.
+  // The wallet's own view of the network. INFORMATIONAL ONLY — nothing below uses
+  // its values, and a failure here must not fail the connection.
+  //
+  // It used to throw a WalletLockedError. That produced a loop: the connect
+  // succeeded, getConfiguration said "locked", the user was told to unlock and
+  // retry, `connect()` ran again, Lace prompted again, and so on — each retry
+  // re-triggering the thing that had supposedly just been done.
+  //
+  // The connection is genuinely established at this point; only this optional
+  // report failed. Blocking on it conflated "connected" with "will sign", and the
+  // user could not get past a step that had already succeeded. So the failure is
+  // recorded and surfaced as a warning, and the locked state is handled where it
+  // actually matters: when a transaction is attempted.
   console.info("[gotit] fetching wallet configuration…");
+  let walletWarning: string | null = null;
   try {
     const cfg = (await withTimeout(
       (connectedAPI as any).getConfiguration(),
@@ -192,22 +204,17 @@ export async function connectGotIt(
     )) as Record<string, string>;
     console.info("[gotit] wallet reports:", cfg);
   } catch (e: any) {
-    // Reaching here means the wallet refused to answer, most often because it is
-    // locked. That is worth saying out loud rather than papering over: the user
-    // cannot contribute until it is unlocked, and the error they would otherwise
-    // meet is an opaque failure deep inside a transaction.
     const msg = String(e?.message ?? e);
     console.warn("[gotit] wallet did not answer getConfiguration:", msg);
-    if (/lock/i.test(msg)) {
-      throw new WalletLockedError(
-        "Your wallet is locked, so it cannot sign anything yet. Open the Lace extension, " +
-          "enter your password, and press Connect again.",
-      );
-    }
+    walletWarning = /lock/i.test(msg)
+      ? "Your wallet reports that it is locked. You can browse freely; open the Lace extension " +
+        "and unlock it before contributing, because signing needs an unlocked wallet."
+      : `The wallet did not report its configuration (${msg}). Continuing anyway.`;
   }
   const uris = { ...FALLBACK_URIS };
   console.info("[gotit] using endpoints:", uris);
 
+  if (walletWarning) console.warn("[gotit] wallet warning:", walletWarning);
   // Absolute origin required — the provider constructs new URL(base) internally
   const zkConfigProvider: FetchZkConfigProvider<string> = new FetchZkConfigProvider(
     `${window.location.origin}/zk/candor`,
