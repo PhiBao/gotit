@@ -38,13 +38,38 @@ docker compose -f packages/contract/proof-server.yml up
 
 On Preprod the faucet does NOT dispense tDUST — you generate it from tNIGHT:
 
-1. Create/recover a Midnight account in Lace (Preprod network).
-2. Copy your **unshielded** address (`mn_addr_preprod1...`) and request tNIGHT from the
-   [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) — 1000 tNIGHT per request.
-3. In Lace, open the Midnight wallet and click **Generate tDUST** → Review → Confirm.
+1. Create/recover a Midnight account in Lace, switched to the **Preprod** network.
+2. Copy your **unshielded** address — it starts `mn_addr_preprod1…`, NOT the shielded
+   address — and request tNIGHT from the
+   [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) (1000 tNIGHT per request).
+3. **Wait for the transfer to finish confirming.** Lace shows it as *Pending* first. The wallet
+   cannot register NIGHT it has not yet received.
+4. In Lace, open the Midnight wallet and click **Generate tDUST** → Review → Confirm.
    This registers your tNIGHT for DUST generation (an on-chain transaction).
-4. Wait 1–2 minutes: tDUST accrues continuously into the tDUST tank, up to a cap
-   set by your registered tNIGHT. Deploy once you see a tDUST balance.
+5. Wait 1–2 minutes: tDUST accrues continuously into the tDUST tank, up to a cap set by your
+   registered tNIGHT. Deploy once you see a tDUST balance.
+
+### "At least one Night UTXO is required"
+
+Lace says this when it holds no **unshielded, confirmed** NIGHT to register. Three causes, in
+order of likelihood:
+
+| Cause | Fix |
+|---|---|
+| The faucet transfer is still pending | Wait. Lace shows the balance before the UTXO is spendable. |
+| The tNIGHT went to the **shielded** address | Request again to the `mn_addr_preprod1…` address. The faucet needs the unshielded one. |
+| The wallet has not re-synced | Lock and unlock Lace, or wait — a first Preprod sync can take several minutes. |
+
+### "Lace never answers Connect"
+
+Observed on an older Lace build: `connect()` is accepted, the wallet sits open and unlocked, and
+no approval prompt ever appears. **Update Lace.** That fixed it in our case. Two related causes:
+
+- The approval prompt lives behind the **toolbar icon**, not the side panel. The side panel shows
+  balances and does not reliably show connection requests.
+- Retrying while a request is pending stacks requests inside the wallet, which can wedge it. The
+  app now sends one request per press, but an already-wedged wallet needs
+  **Settings → Connected apps → remove the dApp**, then reconnect.
 
 See [Funding a wallet](https://docs.midnight.network/guides/acquire-tokens) for the
 full guide and troubleshooting.

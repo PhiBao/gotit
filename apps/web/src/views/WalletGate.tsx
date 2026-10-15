@@ -25,6 +25,8 @@ import { phaseLabel, needsUserAction } from "../lib/walletConnect";
  */
 
 const LACE_URL = "https://www.lace.io/";
+/** Known-working floor. Older builds can accept connect() and never answer it. */
+const LACE_MIN = "the newest version";
 /** Free test funds. On Preprod the faucet dispenses tNIGHT, which generates tDUST. */
 const FAUCET_URL = "https://midnight-tmnight-preprod.nethermind.dev/";
 
@@ -120,14 +122,33 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
             its approval prompt, which looks exactly like the button doing nothing.
           </li>
           <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
+            <b>Update Lace to the newest version.</b>{" "}
+            <span className="muted">
+              An out-of-date build can accept a connection request and never answer it, which looks
+              identical to a locked wallet. If Connect hangs with the wallet open and unlocked, this
+              is the first thing to try — it fixed exactly that case.
+            </span>{" "}
+            <a href={LACE_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+              Check for updates
+            </a>
+            .
+          </li>
+          <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
             <b>Press Connect, then approve in the Lace icon in your toolbar.</b> The side panel
             shows your balances but does not always show connection requests, which is why the
             button can seem to do nothing. You will need a little
-            tDUST to contribute — it comes free from the{" "}
+            tDUST to contribute, and it comes free from the{" "}
             <a href={FAUCET_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
               Preprod faucet
             </a>
-            . Request tNIGHT, then press <b>Generate tDUST</b> in Lace and wait a minute.
+            . Request tNIGHT to your <b>unshielded</b> address (it starts{" "}
+            <code>mn_addr_preprod1…</code>) — not the shielded one. Then wait for the transfer to
+            finish confirming before pressing <b>Generate tDUST</b> in Lace.{` `}
+            <span className="muted">
+              If Lace says <i>&quot;At least one Night UTXO is required&quot;</i>, the tNIGHT is
+              either still pending or was sent to a different address: Lace can only register NIGHT
+              it holds unshielded and confirmed.
+            </span>
           </li>
         </ol>
 

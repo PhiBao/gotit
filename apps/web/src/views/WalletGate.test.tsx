@@ -104,3 +104,34 @@ describe("the always-visible hint", () => {
     expect(walletHint({ kind: "rejected", detail: "" }, true)).toMatch(/declined/i);
   });
 });
+
+describe("the two problems that actually cost time", () => {
+  it("tells people to update Lace, because an old build accepts connect and never answers", () => {
+    // This is not hypothetical: updating Lace is what fixed a hang where the
+    // wallet sat open, unlocked and funded while connect() never resolved.
+    const t = text(<WalletGate {...base} />);
+    expect(t).toMatch(/Update Lace to the newest version/);
+    expect(t).toMatch(/accept a connection request and never answer it/);
+  });
+
+  it("says the approval prompt is behind the toolbar icon, not the side panel", () => {
+    const t = text(<WalletGate {...base} />);
+    expect(t).toMatch(/Lace icon in your toolbar/);
+    expect(t).toMatch(/side panel/i);
+  });
+
+  it("explains the tDUST error rather than just linking the faucet", () => {
+    // "At least one Night UTXO is required" is Lace's message and it does not
+    // mention either cause. The two causes are worth an hour of confusion.
+    const t = text(<WalletGate {...base} />);
+    expect(t).toMatch(/unshielded/i);
+    expect(t).toMatch(/mn_addr_preprod1/);
+    expect(t).toMatch(/At least one Night UTXO is required/);
+    expect(t).toMatch(/pending|different address/i);
+  });
+
+  it("warns that a still-confirming transfer cannot be registered yet", () => {
+    const t = text(<WalletGate {...base} />);
+    expect(t).toMatch(/wait for the transfer to finish confirming/i);
+  });
+});
