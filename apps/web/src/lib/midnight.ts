@@ -9,7 +9,7 @@
  * - balancing + submission are wrapped around the connected wallet API
  */
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
-import { NETWORK_ID } from "./indexerConfig";
+import { NETWORK_ID, INDEXER_HTTP, INDEXER_WS } from "./indexerConfig";
 import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
@@ -61,15 +61,43 @@ function getFirstCompatibleWallet(): InitialAPI | undefined {
 }
 
 
-/** Fallback endpoints when the wallet's getConfiguration() is missing or fails. */
+/**
+ * The endpoints this app uses, regardless of what the wallet says.
+ *
+ * THE INDEXER IS DELIBERATELY NOT TAKEN FROM THE WALLET. It used to be:
+ * `getConfiguration()` supplied the indexer and prover URIs, and whatever it
+ * returned was used. Two things went wrong with that.
+ *
+ * First, this fallback hardcoded `indexer.preprod.midnight.network`, which was
+ * decommissioned on 2026-10-09. So whenever `getConfiguration()` failed — and it
+ * fails whenever the wallet is locked, which is common — the app silently routed
+ * every read to a dead host and reported the resulting confusion as a chain
+ * problem.
+ *
+ * Second, a wallet is not an authority on which indexer this app should use. Lace
+ * may hold an endpoint from whenever it was last configured; the app's own proxy
+ * is what carries the Blockfrost token and what the operator controls. Trusting
+ * the wallet here means a browser extension can silently point a compliance
+ * report at an indexer we did not choose.
+ *
+ * So the indexer always comes from indexerConfig (same-origin, proxy-mediated),
+ * and only the prover URI is a local concern. Absolute URLs because
+ * FetchZkConfigProvider and the proof provider construct `new URL(uri)`.
+ */
 const FALLBACK_URIS = {
-  indexerUri: "https://indexer.preprod.midnight.network/api/v4/graphql",
-  indexerWsUri: "wss://indexer.preprod.midnight.network/api/v4/graphql/ws",
-  // Routed through the Vite dev proxy: Lace's service worker blocks direct
-  // 127.0.0.1 fetches (ERR_FAILED), same-origin paths pass through.
-  // Absolute because FetchZkConfigProvider/proof provider construct new URL(uri).
+  indexerUri: INDEXER_HTTP,
+  indexerWsUri: INDEXER_WS,
+  // Same-origin: Lace's service worker blocks direct 127.0.0.1 fetches (ERR_FAILED).
   proverServerUri: `${window.location.origin}/proof-server`,
 };
+
+/** The wallet answered the connection but will not sign until it is unlocked. */
+export class WalletLockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WalletLockedError";
+  }
+}
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -153,25 +181,31 @@ export async function connectGotIt(
   setNetworkId(networkId);
   const connectedAPI = preConnected ?? (await connectToWallet(networkId));
 
+  // The wallet's own view of the network. Informational: used to warn about a
+  // mismatch, never to choose an endpoint.
   console.info("[gotit] fetching wallet configuration…");
-  let uris = { ...FALLBACK_URIS };
   try {
     const cfg = (await withTimeout(
       (connectedAPI as any).getConfiguration(),
       5_000,
       "getConfiguration",
     )) as Record<string, string>;
-    uris = {
-      indexerUri: cfg.indexerUri ?? cfg.indexerUrl ?? FALLBACK_URIS.indexerUri,
-      indexerWsUri: cfg.indexerWsUri ?? cfg.indexerWsUrl ?? FALLBACK_URIS.indexerWsUri,
-      // Always use the same-origin proxy for the prover: Lace's service worker
-      // blocks direct 127.0.0.1 fetches from the page (ERR_FAILED).
-      proverServerUri: FALLBACK_URIS.proverServerUri,
-    };
-    console.info("[gotit] wallet configuration:", cfg);
+    console.info("[gotit] wallet reports:", cfg);
   } catch (e: any) {
-    console.info("[gotit] getConfiguration unavailable, using fallback URIs:", e?.message ?? e);
+    // Reaching here means the wallet refused to answer, most often because it is
+    // locked. That is worth saying out loud rather than papering over: the user
+    // cannot contribute until it is unlocked, and the error they would otherwise
+    // meet is an opaque failure deep inside a transaction.
+    const msg = String(e?.message ?? e);
+    console.warn("[gotit] wallet did not answer getConfiguration:", msg);
+    if (/lock/i.test(msg)) {
+      throw new WalletLockedError(
+        "Your wallet is locked, so it cannot sign anything yet. Open the Lace extension, " +
+          "enter your password, and press Connect again.",
+      );
+    }
   }
+  const uris = { ...FALLBACK_URIS };
   console.info("[gotit] using endpoints:", uris);
 
   // Absolute origin required — the provider constructs new URL(base) internally

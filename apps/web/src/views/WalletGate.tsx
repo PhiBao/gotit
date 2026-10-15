@@ -79,7 +79,13 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
         style={{ maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto" }}
       >
         <div className="kicker">STEP 1 OF 2</div>
-        <h2 style={{ margin: "4px 0 8px", fontSize: 22 }}>Connect a wallet to contribute</h2>
+        <h2 style={{ margin: "4px 0 8px", fontSize: 22 }}>
+          {phase?.kind === "needs-attention"
+            ? "Your wallet needs attention"
+            : phase?.kind === "error" || phase?.kind === "rejected"
+              ? "Connection did not complete"
+              : "Connect a wallet to contribute"}
+        </h2>
 
         {/* Lead with what needs no setup at all. */}
         <div

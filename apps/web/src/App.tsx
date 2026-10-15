@@ -230,9 +230,16 @@ function GotItApp() {
       setShowGate(false);
       showToast(`Wallet connected — ${NETWORK_ID}`);
     } catch (e: any) {
+      // A locked wallet gets its own phase: the connection technically succeeded
+      // and then the wallet refused to answer, so "connection failed" would send
+      // the user looking in the wrong place.
+      const locked = /lock/i.test(String(e?.name ?? "")) || /lock/i.test(String(e?.message ?? ""));
       const phase = e?.phase ?? {
-        kind: "error" as const,
+        kind: (locked ? "needs-attention" : "error") as ConnectionPhase["kind"],
         detail: String(e?.message ?? e),
+        hint: locked
+          ? "Nothing was sent to the network. Unlock Lace, then press Connect again."
+          : undefined,
       };
       setConnectPhase(phase);
       // Stay open: the dialog renders the phase and the next step, which is more

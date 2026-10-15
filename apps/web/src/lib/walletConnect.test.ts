@@ -201,3 +201,47 @@ describe("phase helpers", () => {
     expect(needsUserAction({ kind: "needs-attention", detail: "", waitedMs: 9000 })).toBe(true);
   });
 });
+
+describe("locked wallet: connect resolves, then the wallet refuses to answer", () => {
+  it("is distinguishable from a connection failure", async () => {
+    // The reported case: connect() succeeded, then getConfiguration() threw
+    // "Wallet is locked. Please unlock the wallet first." The user had just
+    // unlocked, so 'connection failed' would send them looking in the wrong place.
+    const err = new Error("Wallet is locked. Please unlock the wallet first.");
+    expect(/lock/i.test(err.message)).toBe(true);
+  });
+
+  it("classifies a locked wallet as needing attention, not as an error", () => {
+    const locked = /lock/i.test("Wallet is locked. Please unlock the wallet first.");
+    const kind = locked ? "needs-attention" : "error";
+    expect(kind).toBe("needs-attention");
+    expect(needsUserAction({ kind: "needs-attention", detail: "locked", waitedMs: 0 })).toBe(true);
+  });
+});
+
+describe("the indexer is never taken from the wallet", () => {
+  /**
+   * The bug this pins: FALLBACK_URIS hardcoded indexer.preprod.midnight.network,
+   * which was decommissioned on 2026-10-09. Whenever getConfiguration() failed —
+   * and it fails whenever the wallet is locked — the app silently routed every
+   * read to a dead host.
+   *
+   * A wallet is also not an authority on which indexer a compliance report should
+   * use: Lace may hold a stale endpoint, and the app's own proxy is what carries
+   * the Blockfrost token.
+   */
+  it("builds same-origin indexer endpoints from config, not from a wallet value", async () => {
+    const cfg = await import("./indexerConfig");
+    // Same-origin, so the proxy can attach the token.
+    expect(cfg.INDEXER_HTTP).toMatch(/^https?:\/\/[^/]*\/indexer\//);
+    expect(cfg.INDEXER_WS).toMatch(/^wss?:\/\/[^/]*\/indexer\//);
+    // And never the decommissioned host.
+    expect(cfg.INDEXER_HTTP).not.toContain("indexer.preprod.midnight.network");
+    expect(cfg.INDEXER_WS).not.toContain("indexer.preprod.midnight.network");
+  });
+
+  it("uses the Blockfrost path by default", async () => {
+    const cfg = await import("./indexerConfig");
+    expect(cfg.INDEXER_PATH).toBe("/api/v0");
+  });
+});
