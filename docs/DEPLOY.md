@@ -172,6 +172,61 @@ Notes:
 - The issuer keeps verification leaves in memory, so a redeploy resets them; that is fine for
   demos (codes are issued in-band).
 
+## 8b. The indexer moved to Blockfrost (2026-10-09)
+
+> **Status: the app currently reads NO live chain state, and says so.**
+
+`indexer.preprod.midnight.network` was **decommissioned on 2026-10-09**. It now answers every
+request with `410 Gone` and this body:
+
+```json
+{"errors":[{"message":"indexer.preprod.midnight.network was decommissioned on 2026-10-09. The Midnight indexer is now provided by Blockfrost.","extensions":{"code":"ENDPOINT_DECOMMISSIONED","migrationGuide":"https://docs.midnight.network/guides/networks-and-environments#blockfrost-the-mainnet-indexer-and-rpc-provider"}}]}
+```
+
+The Midnight indexer is now Blockfrost, which authenticates with a **project token**. This is
+the second move — the first was `blockfrost.lw.iog.io` returning 410 in September.
+
+**What this breaks.** Every live read in the app goes through this endpoint: the landing page's
+chain stats, the v1 cut histograms, the Art. 9 report, the verification page, and the v2
+deploy (a deploy is a transaction, and transactions need the indexer). It is not a v2 problem.
+
+**What the app does about it.** It refuses to present sample data as chain data and shows a
+banner naming the actual cause, with the migration link taken out of the 410 body rather than
+hardcoded. The distinction matters: "no reporting period has been run" and "we cannot reach the
+chain" are different facts, and a compliance product that renders the same empty state for both
+is hiding an outage behind a plausible page. See `apps/web/src/lib/indexerStatus.ts`.
+
+**To migrate.** Three steps, once you have a Blockfrost project token for Midnight Preprod:
+
+```bash
+# 1. the token, as a secret -- never in fly.web.toml, which is committed
+fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=preprod...
+
+# 2. point the proxy at Blockfrost (fly.web.toml [env])
+#    INDEXER_URL  = "https://midnight-preprod.blockfrost.io"
+#    INDEXER_HOST = "midnight-preprod.blockfrost.io"
+
+# 3. push the Caddyfile change too; it injects the token header
+fly deploy -c fly.web.toml
+```
+
+`deploy/Caddyfile` adds `header_up project_id {$BLOCKFROST_PROJECT_ID}` to the `/indexer/*`
+reverse proxy. That is why the token stays server-side: `indexerPublicDataProvider(queryURL,
+subscriptionURL)` takes no headers, so the browser could not send it anyway — and passing a
+credential through the client bundle is not something to do by accident.
+
+**One thing to verify before relying on it.** `indexerPublicDataProvider` speaks the Midnight
+indexer GraphQL schema (API v4). Blockfrost's Midnight endpoint is token-gated before routing,
+so whether it serves that same schema could not be confirmed without a token. Probe it first:
+
+```bash
+pnpm --filter @gotit/contract verify:chain -- --address <addr> --categories engineering
+```
+
+If it reports the schema as incompatible rather than reachable, the GraphQL layer needs a shim
+and that is a larger job than a config change. Running a local indexer against
+`midnight-node` is the fallback that does not depend on anyone else's infrastructure.
+
 ## 9. The indexer moved — check this after any infra change
 
 The browser reads contract state through a same-origin `/indexer/*` proxy (Caddy on Fly, Vite

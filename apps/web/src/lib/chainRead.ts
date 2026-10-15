@@ -35,6 +35,41 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  * Read the deployed contract's public ledger state.
  * Throws on failure — callers must handle (sample data is the fallback).
  */
+/**
+ * Probe the indexer once, so the app can say WHY live reads are unavailable.
+ *
+ * The app already refuses to pass off sample data as chain data, but until now
+ * it could not distinguish "nobody has run a reporting period" from "the network
+ * moved its indexer" — and on 2026-10-09 the second one happened. Every read
+ * through this endpoint goes through the app's own /indexer proxy, which injects
+ * the Blockfrost project token server-side.
+ */
+export async function probeIndexer(
+  timeoutMs = 10_000,
+): Promise<import("./indexerStatus").IndexerReport> {
+  const { classifyIndexerResponse, reportFrom } = await import("./indexerStatus");
+  const url = INDEXER_HTTP;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "{__typename}" }),
+      signal: ctl.signal,
+      cache: "no-store",
+    });
+    clearTimeout(t);
+    const body = await res.text().catch(() => "");
+    return reportFrom(classifyIndexerResponse(res.status, body), url);
+  } catch (e) {
+    return reportFrom(
+      { kind: "unreachable", message: e instanceof Error ? e.message : "no response" },
+      url,
+    );
+  }
+}
+
 export async function readGotItState(contractAddress: string): Promise<{
   epoch: string;
   members: number;

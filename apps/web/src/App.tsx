@@ -26,6 +26,7 @@ import {
 import { requestCode, confirmCode, enrollLeaf } from "./lib/issuer";
 import type { GotItProviders } from "./lib/midnight";
 import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
+import type { IndexerReport } from "./lib/indexerStatus";
 import { preflightV2Deploy, describePreflight } from "./lib/preflight";
 import { isLaceAvailable, getStoredContractAddress, setStoredContractAddress, getEffectiveIssuerKey, getBakedIssuerKey, getStoredIssuerKey, getStoredV2ContractAddress, setStoredV2ContractAddress } from "./lib/session";
 import type { LedgerSnapshot } from "./lib/ledger";
@@ -135,14 +136,33 @@ function GotItApp() {
   const [live, setLive] = useState<{ epoch: string; members: number; submissions: number; snapshot: LedgerSnapshot } | null>(null);
   const contractAddress = getStoredContractAddress();
 
+  /**
+   * The indexer's state, probed once and refreshed with the live read.
+   *
+   * The app has always refused to present sample data as chain data. This is the
+   * other half: saying WHICH failure caused the fallback, because "nobody has
+   * run a reporting period yet" and "the network decommissioned its indexer" are
+   * different facts that previously produced the same screen.
+   */
+  const [indexer, setIndexer] = useState<IndexerReport | null>(null);
+
   const refreshLive = async () => {
     if (!contractAddress) return;
     try {
       const { readGotItState } = await chainReadLib();
       setLive(await readGotItState(contractAddress));
+      setIndexer(null);
     } catch (e: any) {
-      console.warn("[gotit] live read unavailable, showing sample data:", e?.message ?? e);
+      console.warn("[gotit] live read unavailable:", describeFailure(e));
       setLive(null);
+      // Classify the failure so the banner can name it. Imported dynamically so
+      // a chain-read problem never blocks first paint.
+      try {
+        const { probeIndexer } = await chainReadLib();
+        setIndexer(await probeIndexer());
+      } catch {
+        setIndexer(null);
+      }
     }
   };
   useEffect(() => {
@@ -264,6 +284,59 @@ function GotItApp() {
           <div className="notice" style={{ marginTop: 14, borderColor: "#854d0e", background: "#1a1500" }}>
             <strong>Demo mode:</strong> hosted prover temporarily unavailable — your last contribution was recorded locally and is <em>not</em> on-chain.{" "}
             <span className="small">Refresh or run locally (<span className="mono">pnpm dev:all</span>) for the full on-device privacy guarantee.</span>
+          </div>
+        </div>
+      )}
+
+      {/*
+        A chain outage must not look like an empty chain. Shown on every view,
+        because the report and verification pages depend on live reads too.
+      */}
+      {indexer && !indexer.live && (
+        <div className="container" style={{ paddingTop: 14 }}>
+          <div
+            className="notice"
+            style={{ borderColor: "#713f12", background: "#1a1500", lineHeight: 1.55 }}
+          >
+            <div className="row" style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <div style={{ flex: "1 1 420px" }}>
+                <strong style={{ color: "#fcd34d" }}>
+                  Live chain reads are unavailable &mdash; showing sample data
+                </strong>
+                <div className="small" style={{ marginTop: 4 }}>
+                  {indexer.headline}
+                </div>
+                {indexer.action && (
+                  <div className="small muted" style={{ marginTop: 4 }}>
+                    {indexer.action}
+                  </div>
+                )}
+              </div>
+              <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                {indexer.status.kind === "decommissioned" && indexer.status.migrationUrl && (
+                  <a className="btn small" href={indexer.status.migrationUrl} target="_blank" rel="noreferrer">
+                    Migration guide
+                  </a>
+                )}
+                <button
+                  className="btn btn-ghost small"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(
+                      `indexer: ${indexer.url}\nstatus: ${indexer.status.kind}\n${indexer.headline}` +
+                        (indexer.action ? `\n\n${indexer.action}` : ""),
+                    );
+                    showToast("Indexer status copied");
+                  }}
+                >
+                  Copy status
+                </button>
+              </div>
+            </div>
+            <div className="small muted" style={{ marginTop: 6 }}>
+              The numbers below are a local illustrative dataset, not chain state. This is stated
+              rather than hidden: a compliance report that silently substitutes figures is worse
+              than one that says it cannot read the chain.
+            </div>
           </div>
         </div>
       )}

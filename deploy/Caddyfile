@@ -19,6 +19,18 @@
 	#
 	# WebSocket subscriptions are upgraded transparently by Caddy, so the client
 	# can use the same origin for both HTTP queries and ws:// subscriptions.
+	#
+	# Onward migration, 2026-10-09. `indexer.preprod.midnight.network` was
+	# decommissioned and the Midnight indexer is now provided by Blockfrost,
+	# which authenticates with a `project_id` TOKEN. midnight-js's
+	# `indexerPublicDataProvider(queryURL, subscriptionURL)` takes no headers, so
+	# the browser cannot send the token itself — this proxy injects it instead.
+	# That also keeps the token out of the bundle and out of anyone's devtools,
+	# which is where it would end up if we passed it from the client.
+	#
+	# BLOCKFROST_PROJECT_ID is a Fly secret, not a build arg. If it is unset the
+	# header is omitted and Blockfrost answers 403 "Missing project token"; the
+	# app surfaces that verbatim rather than pretending the chain has no data.
 	handle /indexer/* {
 		uri strip_prefix /indexer
 		reverse_proxy {$INDEXER_URL} {
@@ -26,6 +38,7 @@
 				tls
 				tls_server_name {$INDEXER_HOST}
 			}
+			header_up project_id {$BLOCKFROST_PROJECT_ID}
 		}
 	}
 

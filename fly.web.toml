@@ -12,8 +12,25 @@ primary_region = "iad"
 [env]
   ISSUER_URL = "https://candor-midnight-issuer.fly.dev"
   ISSUER_HOST = "candor-midnight-issuer.fly.dev"
-  # Official Preprod indexer, API v4. The previous upstream
-  # (blockfrost.lw.iog.io) now returns 410 Gone for Midnight endpoints.
+  # The indexer, which has now moved twice.
+  #
+  #   1. blockfrost.lw.iog.io         -> 410 Gone when the iog proxy was retired
+  #   2. indexer.preprod.midnight.network -> 410 Gone, decommissioned 2026-10-09
+  #   3. Blockfrost, authenticated with a project token
+  #
+  # Currently pointed at (2) ON PURPOSE. Its 410 body carries the decommission
+  # notice and a migration link, which the app surfaces verbatim, so the failure
+  # is self-describing instead of a silent empty chain. Pointing at (3) without a
+  # token would give a bare 403 and less information.
+  #
+  # To move to (3): set BLOCKFROST_PROJECT_ID as a Fly SECRET (not an env value
+  # here -- this file is committed), then swap the two lines below and redeploy.
+  # The Caddyfile injects the token server-side, so it never reaches the browser.
+  #
+  #   fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=preprodXXXX
+  #   # then, for Blockfrost's Midnight Preprod:
+  #   INDEXER_URL  = "https://midnight-preprod.blockfrost.io"
+  #   INDEXER_HOST = "midnight-preprod.blockfrost.io"
   INDEXER_URL = "https://indexer.preprod.midnight.network"
   INDEXER_HOST = "indexer.preprod.midnight.network"
   PROOF_SERVER_URL = "https://candor-midnight-prover.fly.dev"

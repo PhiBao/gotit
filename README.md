@@ -232,7 +232,7 @@ Deploy your own instance: `fly deploy -c fly.issuer.toml` then `fly deploy -c fl
 | Browser chain path (Lace + Midnight.js 4.1.1) | **End-to-end verified on Preprod** with real transactions |
 | Compliance report UI | **Live** — Art. 9 tables, interval means, two-sided suppression, coverage disclosure, and an in-circuit k-gate. Reads the v2 ledger; says so plainly when there is nothing publishable rather than substituting data |
 | HRIS / payroll export connector | **Wave 3** |
-| Live on-chain reads | **Working** — official Preprod indexer (API v4) via a same-origin proxy; reads epoch and real histogram entries with no wallet |
+| Live on-chain reads | **DOWN — upstream outage.** The Midnight Preprod indexer was decommissioned on 2026-10-09 and moved to Blockfrost, which needs a project token. Every live read is affected, not just v2. The app states this in a banner and refuses to present sample data as chain data. See [docs/DEPLOY.md](docs/DEPLOY.md) §8b |
 | Hosted Fly environment | **Running** (1 machine per app) — pause/resume in [docs/DEPLOY.md](docs/DEPLOY.md) |
 | Demo video | **Not yet recorded** — shot list in [docs/DEMO.md](docs/DEMO.md) |
 
