@@ -5,7 +5,19 @@ import {
   type Art9ReportBundle,
 } from "../lib/art9";
 import { allGroups, bucketLabels, type JobCategory } from "../lib/groups";
-import { getStoredContractAddress, getStoredV2ContractAddress } from "../lib/session";
+import {
+  getStoredContractAddress,
+  getStoredV2ContractAddress,
+  getUrlContractAddress,
+  shareableReportUrl,
+} from "../lib/session";
+import {
+  loadCategories,
+  saveCategories,
+  mergeCategories,
+  usedCategories,
+  parseCategoryText,
+} from "../lib/categoryStore";
 import { GENDER, COMPONENT, GENDER_LABEL, COMPONENT_LABEL, DEFAULT_K } from "@gotit/shared/paygap";
 
 /**
@@ -24,12 +36,24 @@ import { GENDER, COMPONENT, GENDER_LABEL, COMPONENT_LABEL, DEFAULT_K } from "@go
  *      takes the label mapping as input and prints it as part of the artifact.
  */
 
-const DEFAULT_CATEGORIES: JobCategory[] = [
-  { id: "eng", label: "engineering" },
-  { id: "sales", label: "sales" },
-  { id: "ops", label: "operations" },
-  { id: "mgmt", label: "management" },
-];
+/**
+ * The categories to look for. Read from the shared store, merged with anything
+ * the Operator has actually submitted under.
+ *
+ * This is not cosmetic. The ledger keys groups by `hash(label)`, so a report
+ * looking for "engineering" cannot see a group filed under "Entrepreneur" —
+ * different hashes, both valid, and the ledger has no name to compare. Five
+ * submissions read as `no-data · 0 participants` for exactly that reason.
+ *
+ * Merging used labels means a category nobody configured but somebody submitted
+ * to still shows up, rather than being silently omitted from coverage.
+ */
+function activeCategories(): JobCategory[] {
+  return mergeCategories(loadCategories(), usedCategories()).map((c) => ({
+    id: c.id,
+    label: c.label,
+  }));
+}
 
 const PERIOD = "FY2026 — Art. 9 preview";
 
@@ -41,9 +65,12 @@ type LoadState =
 export default function ReportPage() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [copied, setCopied] = useState(false);
-  const [categories, setCategories] = useState<JobCategory[]>(DEFAULT_CATEGORIES);
-  const [categoriesText, setCategoriesText] = useState(DEFAULT_CATEGORIES.map((c) => c.label).join("\n"));
+  const [categories, setCategories] = useState<JobCategory[]>(() => activeCategories());
+  const [categoriesText, setCategoriesText] = useState(() =>
+    activeCategories().map((c) => c.label).join("\n"),
+  );
   const [showSetup, setShowSetup] = useState(false);
+  const [setupProblems, setSetupProblems] = useState<string[]>([]);
   const [illustrative, setIllustrative] = useState<boolean>(() => {
     try {
       return location.hash
@@ -68,7 +95,9 @@ export default function ReportPage() {
    */
   const v2Address = getStoredV2ContractAddress();
   const v1Address = getStoredContractAddress();
-  const address = v2Address ?? v1Address;
+  // The URL wins, so a shared link shows the report it points at rather than
+  // whatever this browser last deployed.
+  const address = getUrlContractAddress() ?? v2Address ?? v1Address;
 
   const load = useCallback(async () => {
     setState({ kind: "loading" });
@@ -137,14 +166,18 @@ export default function ReportPage() {
   };
 
   const applyCategories = () => {
-    const parsed: JobCategory[] = categoriesText
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((label) => ({ id: label.toLowerCase().replace(/\W+/g, "-"), label }));
-    if (parsed.length === 0) return;
+    const { categories: parsed, problems } = parseCategoryText(categoriesText);
+    if (parsed.length === 0) {
+      setSetupProblems(problems.length ? problems : ["At least one category is required."]);
+      return;
+    }
+    // Persist, so the contribution form offers the same labels. A report whose
+    // category list disagrees with the submissions is a report that shows zeros.
+    saveCategories(parsed);
     setCategories(parsed);
+    setSetupProblems(problems);
     setShowSetup(false);
+    if (problems.length === 0) setSetupProblems([]);
   };
 
   return (
@@ -188,6 +221,24 @@ export default function ReportPage() {
               <Stat label="Submissions" value={String(state.bundle.submissions)} />
               <Stat label="Publishable groups" value={`${state.bundle.publishableGroups} / ${state.bundle.configuredGroups}`} />
             </div>
+            {/*
+              Which contract, and which category labels. Both are needed to know
+              whether "no data" means nobody submitted or the report is looking in
+              the wrong place — the difference between an empty ledger and five
+              submissions filed under a label nobody configured.
+            */}
+            <div className="small muted" style={{ marginTop: 10, lineHeight: 1.6 }}>
+              <div>
+                reading <code style={{ color: "var(--fg)" }}>{address ?? "no contract configured"}</code>
+                {" "}· categories{" "}
+                <code style={{ color: "var(--fg)" }}>{categories.map((c) => c.label).join(", ")}</code>
+              </div>
+              <div>
+                The ledger stores each category as a hash of its label, so a group filed under a
+                label not listed here is invisible to this report. If your submissions are missing,
+                press <b>Categories</b> and add the label you used.
+              </div>
+            </div>
             <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {state.illustrative ? (
                 <span className="badge small" style={{ color: "#facc15", borderColor: "#713f12", background: "#1a1500" }}>
@@ -202,6 +253,18 @@ export default function ReportPage() {
                 fingerprint <code style={{ color: "var(--fg)" }}>{state.fingerprint}</code>
               </span>
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <button
+                  className="btn btn-ghost small"
+                  onClick={() => {
+                    const url = shareableReportUrl(address ?? "");
+                    navigator.clipboard?.writeText(url);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  title="Copy a link that opens this report in any browser — the address travels in the URL, localStorage does not"
+                >
+                  {copied ? "Copied" : "Copy link"}
+                </button>
                 <button
                   className="btn btn-ghost small"
                   onClick={() => setIllustrative((v) => !v)}
@@ -252,9 +315,28 @@ export default function ReportPage() {
                   fontSize: 13,
                 }}
               />
-              <button className="btn btn-primary small" style={{ marginTop: 10 }} onClick={applyCategories}>
-                Use these categories
-              </button>
+              {setupProblems.length > 0 && (
+                <div
+                  className="notice"
+                  style={{ marginTop: 10, borderColor: "#713f12", background: "#1a1500", fontSize: 13, lineHeight: 1.5 }}
+                >
+                  {setupProblems.map((p, i) => (
+                    <div key={i}>{p}</div>
+                  ))}
+                </div>
+              )}
+              <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                <button className="btn btn-primary small" onClick={applyCategories}>
+                  Use these categories
+                </button>
+                <button
+                  className="btn small"
+                  onClick={() => setCategoriesText(usedCategories().join("\n"))}
+                  title="Fill in the labels this device has actually submitted under"
+                >
+                  Use submitted labels
+                </button>
+              </div>
             </div>
           )}
 
@@ -263,8 +345,8 @@ export default function ReportPage() {
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Nothing publishable this period</div>
               <div className="muted" style={{ lineHeight: 1.55 }}>
                 {state.bundle.submissions === 0
-                  ? "The contract is live but nobody has contributed. That is the honest state of the ledger, and a report built from it would imply coverage nobody has created."
-                  : `${state.bundle.submissions} submission(s) exist across ${state.bundle.configuredGroups} configured reporting groups, but no category has both a women and a men group clearing k=${state.bundle.k}. Art. 9 compares the two within a category, so a category with data on only one side cannot be reported — and reporting one side alone would reveal the other by subtraction.`}
+                  ? "This contract has no submissions on it at all. That is the honest state of the ledger, and a report built from it would imply coverage nobody has created."
+                  : `${state.bundle.submissions} submission(s) exist on this contract, but none of them fall into the category labels listed above — so every row reads empty. The ledger keys a group by hash(label), and a submission filed under a different label is a different hash. Press Categories and add the label you submitted under.`}
               </div>
             </div>
           )}
@@ -398,7 +480,13 @@ function VerifyBox({ fingerprint }: { fingerprint: string }) {
     setResult("checking…");
     try {
       const { verifyV2Report } = await import("../lib/reportRead.v2");
-      const r = await verifyV2Report(address, input.trim(), DEFAULT_CATEGORIES);
+      // The same list the report was built from. A fingerprint covers a specific
+      // category set, so verifying against a different one reports a mismatch
+      // that means only the lists differ.
+      const { categories: stored } = parseCategoryText(
+        mergeCategories(loadCategories(), usedCategories()).map((c) => c.label).join("\n"),
+      );
+      const r = await verifyV2Report(address, input.trim(), stored);
       setResult(
         r.ok
           ? `MATCH — this report matches live chain state (period ${r.period}, ${r.submissions} submission(s)).`

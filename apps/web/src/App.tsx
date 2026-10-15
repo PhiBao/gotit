@@ -29,6 +29,13 @@ import { describeFailure, failureReport, safeStringify, friendlyChainError } fro
 import type { IndexerReport } from "./lib/indexerStatus";
 import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH, INDEXER_HTTP, INDEXER_WS } from "./lib/indexerConfig";
 import { WalletGate, walletHint } from "./views/WalletGate";
+import {
+  loadCategories,
+  mergeCategories,
+  usedCategories,
+  rememberUsedCategory,
+  type StoredCategory,
+} from "./lib/categoryStore";
 import { phaseLabel } from "./lib/walletConnect";
 import type { ConnectionPhase } from "./lib/walletConnect";
 import { preflightV2Deploy, describePreflight } from "./lib/preflight";
@@ -290,13 +297,27 @@ function GotItApp() {
     <div>
       <header className="topbar">
         <div className="container topbar-inner">
-          <div className="brand">
+          {/*
+            The brand is a home link. Arriving at #report from a shared URL left
+            no way back — the header's only controls were Report/Verify/Contribute,
+            none of which return to the landing page.
+          */}
+          <button
+            className="brand"
+            onClick={() => {
+              setView("browse");
+              try { history.replaceState(null, "", location.pathname); } catch {}
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            title="Back to the start"
+            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}
+          >
             <div className="brand-mark">◐</div>
             <div>
               <div style={{ lineHeight: 1, fontSize: 16 }}>GotIt</div>
               <div className="small mono" style={{ color: "var(--muted)", marginTop: 2 }}>provable · unlinkable · suppressible</div>
             </div>
-          </div>
+          </button>
           <div className="row">
             <span className="badge">
               <span className="mono small">epoch</span> <strong>{displayLedger.epoch}</strong> · <span className="mono small">k≥{K_ANONYMITY}</span>
@@ -338,6 +359,14 @@ function GotItApp() {
             )}
             {chain && (
               <button className="btn btn-ghost small" onClick={() => setOperatorOpen(true)} title="Deploy / enroll / epoch">Operator</button>
+            )}
+            {view !== "browse" && (
+              <button className="btn btn-ghost small" onClick={() => {
+                setView("browse");
+                try { history.replaceState(null, "", location.pathname); } catch {}
+              }} title="Back to the start">
+                ← Home
+              </button>
             )}
             <button className="btn btn-ghost small" onClick={() => setView("report")} title="Art. 9 pay gap report, built from live chain state">
               Report
@@ -1074,6 +1103,21 @@ function OperatorPanel({
     component: 0,
     bucket: 4,
   });
+  /**
+   * The employer's category list, shared with the report page.
+   *
+   * The category is a HASH on chain, so a submission under "Entrepreneur" is
+   * invisible to a report looking for "engineering" — both valid, different
+   * hashes. Five submissions read as `no-data · 0 participants` for exactly that
+   * reason. The list is now one list, and this form selects from it.
+   */
+  const [categories, setCategories] = useState<StoredCategory[]>(() => loadCategories());
+  useEffect(() => {
+    const refresh = () => setCategories(mergeCategories(loadCategories(), usedCategories()));
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
   const [v2Log, setV2Log] = useState<string[]>([]);
   const [issuerKeyHex, setIssuerKeyHex] = useState<string>(() => getStoredIssuerKey() ?? "");
   const [leafHex, setLeafHex] = useState<string>("");
@@ -1254,6 +1298,11 @@ const doSubmitV2 = async () => {
       midnightProvider: (chain.providers as any).midnightProvider,
     });
     const secret = await secretFromSeed(v2Form.seed);
+    // Record the label before submitting: if the report does not know to look for
+    // it, the figures are on chain but unreadable, which is indistinguishable
+    // from not having submitted at all.
+    rememberUsedCategory(v2Form.category);
+    setCategories(mergeCategories(loadCategories(), usedCategories()));
     await v2.submitV2(providers, v2Address, {
       categoryKey: categoryKeyBytes(v2Form.category),
       gender: v2Form.gender,
@@ -1462,14 +1511,20 @@ const doSubmitV2 = async () => {
                       placeholder="person-1"
                       title="Derives this contributor's secret"
                     />
-                    <input
+                    <select
                       className="input"
-                      style={{ flex: "1 1 130px", minWidth: 120 }}
+                      style={{ flex: "1 1 150px", minWidth: 140 }}
                       value={v2Form.category}
                       onChange={(e) => setV2Form((f) => ({ ...f, category: e.target.value }))}
-                      placeholder="engineering"
-                      title="Job category label, max 32 bytes — the ledger stores only its hash"
-                    />
+                      title="Job category. The ledger stores only its hash, so the report must be told the same label."
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.label}>{c.label}</option>
+                      ))}
+                      {!categories.some((c) => c.label === v2Form.category) && (
+                        <option value={v2Form.category}>{v2Form.category}</option>
+                      )}
+                    </select>
                     <select
                       className="input"
                       value={v2Form.gender}

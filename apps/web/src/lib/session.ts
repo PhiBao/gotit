@@ -109,8 +109,51 @@ export function setStoredContractAddress(address: string): void {
  * explicit operator action, so a v2 deploy can never silently repoint the live
  * report at a ledger that happens to be empty.
  */
+/**
+ * A contract address carried in the URL.
+ *
+ * localStorage does not travel, so a report is invisible to a second browser —
+ * the reader sees "no contract configured" while the data sits on chain, which
+ * looks like the app is broken rather than like a missing setting. A shared link
+ * carries the address, so "look at this report" is one URL:
+ *
+ *   https://…/#report&contract=0x1a2b…
+ *
+ * Validated like every other address, so a malformed parameter is ignored rather
+ * than becoming a contract that does not exist.
+ */
+export function getUrlContractAddress(): string | null {
+  try {
+    const hash = location.hash.replace(/^#/, "");
+    const search = location.search.replace(/^\?/, "");
+    const params = new URLSearchParams([hash.replace(/&/g, "&"), search].filter(Boolean).join("&"));
+    const raw = params.get("contract") ?? params.get("address");
+    if (!raw) return null;
+    const clean = raw.replace(/^0x/, "").trim();
+    return /^[0-9a-fA-F]{64}$/.test(clean) ? clean : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getStoredV2ContractAddress(): string | null {
-  return readValidatedAddress(V2_ADDR_KEY) ?? validateBaked(BAKED_V2_ADDRESS, "VITE_CONTRACT_ADDRESS_V2");
+  // Precedence: a link someone was given beats this browser's own memory,
+  // otherwise opening a shared report would show a different contract.
+  return (
+    getUrlContractAddress() ??
+    readValidatedAddress(V2_ADDR_KEY) ??
+    validateBaked(BAKED_V2_ADDRESS, "VITE_CONTRACT_ADDRESS_V2")
+  );
+}
+
+/** The current page's URL with a contract address attached, for sharing. */
+export function shareableReportUrl(address: string): string {
+  try {
+    const base = `${location.origin}${location.pathname}#report&contract=${address.replace(/^0x/, "")}`;
+    return base;
+  } catch {
+    return address;
+  }
 }
 
 export function setStoredV2ContractAddress(address: string): void {
