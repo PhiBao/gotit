@@ -111,7 +111,33 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * `window.midnight` after page load. Tries the v4 `connect()` flow first,
  * falls back to legacy `enable()`.
  */
+/**
+ * One connection attempt at a time, per page.
+ *
+ * Every `connect()` leaves a request inside the wallet. Retrying while one is
+ * pending stacks them, and a wallet with several identical outstanding requests
+ * can stop answering any of them — which looks exactly like a locked wallet that
+ * never responds, and cannot be fixed by unlocking or retrying.
+ *
+ * The visible symptom of that: the user presses Connect repeatedly, the wallet
+ * shows nothing, and eventually the extension is wedged until the dApp is
+ * disconnected from the wallet's own settings. Guarding here means one press is
+ * one request.
+ */
+let inFlightConnect: Promise<ConnectedAPI> | null = null;
+
 export async function connectToWallet(networkId = NETWORK_ID): Promise<ConnectedAPI> {
+  if (inFlightConnect) {
+    console.info("[gotit] a connection request is already pending; reusing it");
+    return inFlightConnect;
+  }
+  inFlightConnect = connectToWalletInner(networkId).finally(() => {
+    inFlightConnect = null;
+  });
+  return inFlightConnect;
+}
+
+async function connectToWalletInner(networkId: string): Promise<ConnectedAPI> {
   const deadline = Date.now() + 8_000;
   let initialAPI: InitialAPI | undefined;
   while (Date.now() < deadline) {

@@ -144,8 +144,9 @@ export async function connectWithProgress(opts: ConnectOptions): Promise<unknown
         kind: "needs-attention",
         waitedMs: waited,
         detail:
-          "The wallet has not answered. If it is locked, open the extension, unlock it, and " +
-          "approve the connection — the request is waiting for you there.",
+          "The wallet has not answered. Click the Lace icon in your browser toolbar — not the " +
+          "side panel — and approve the connection there. If Lace asks for your password, " +
+          "unlock it first. The request stays pending until you do.",
       });
     } else {
       say({
@@ -166,8 +167,9 @@ export async function connectWithProgress(opts: ConnectOptions): Promise<unknown
               kind: "error",
               detail: `The wallet did not respond within ${Math.round(giveUpAfterMs / 1000)} seconds.`,
               hint:
-                "Open the Lace extension, unlock it if it asks, then press Connect again. " +
-                "A locked wallet cannot show its approval prompt.",
+                "Click the Lace icon in your browser toolbar (the side panel does not always show " +
+                "connection requests), unlock it if it asks, then press Connect again. The request " +
+                "is still pending there.",
             }),
           );
         }, giveUpAfterMs),

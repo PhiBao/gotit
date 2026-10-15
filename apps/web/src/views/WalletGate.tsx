@@ -120,7 +120,9 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
             its approval prompt, which looks exactly like the button doing nothing.
           </li>
           <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
-            <b>Press Connect, then approve the request in the extension.</b> You will need a little
+            <b>Press Connect, then approve in the Lace icon in your toolbar.</b> The side panel
+            shows your balances but does not always show connection requests, which is why the
+            button can seem to do nothing. You will need a little
             tDUST to contribute — it comes free from the{" "}
             <a href={FAUCET_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
               Preprod faucet
@@ -128,6 +130,19 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
             . Request tNIGHT, then press <b>Generate tDUST</b> in Lace and wait a minute.
           </li>
         </ol>
+
+        {stuck && (
+          <div
+            className="notice"
+            style={{ marginTop: 14, borderColor: "#713f12", background: "#1a1500", lineHeight: 1.55, fontSize: 13 }}
+          >
+            <b style={{ color: "#fcd34d" }}>Lace has not answered.</b> Click the Lace icon in your
+            browser toolbar — the little fox/loop icon next to the address bar — and look for a
+            connection request inside. If Lace shows your account instead, it is unlocked and the
+            request has not reached it yet: close the side panel, click the toolbar icon, and press
+            Connect once more.
+          </div>
+        )}
 
         <div className="row" style={{ gap: 8, marginTop: 18, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={onConnect} disabled={busy}>

@@ -37,6 +37,30 @@ import type { LedgerSnapshot } from "./lib/ledger";
 
 // live on-chain reads (lazy — wasm loads on demand)
 const chainReadLib = () => import("./lib/chainRead");
+
+/**
+ * Warm the lazy modules the wallet path needs, BEFORE the click.
+ *
+ * `connect()` is called by a click handler, and browsers grant a short
+ * "user activation" window that lets a site open popups and prompt the user. Each
+ * `await` between the click and the wallet call is a chance to lose it, and a
+ * wallet whose approval dialog is a popup will then show nothing at all — which
+ * is exactly the symptom: a connected, unlocked wallet that never answers.
+ *
+ * The connect path used to await two dynamic imports (`./lib/midnight` and
+ * `./lib/walletConnect`) before calling connect(). Those now resolve from cache
+ * because they are warmed at mount, so connect() is the first await in the
+ * handler rather than the third.
+ */
+const walletLib = () => import("./lib/walletConnect");
+let walletPathWarmed = false;
+export function warmWalletPath(): void {
+  if (walletPathWarmed) return;
+  walletPathWarmed = true;
+  void Promise.all([midnightLib(), walletLib()]).catch(() => {
+    walletPathWarmed = false;
+  });
+}
 import { bytesToHex } from "@gotit/shared";
 
 // wasm-heavy modules load on demand — the landing page renders without them
@@ -174,6 +198,12 @@ function GotItApp() {
     const t = setInterval(refreshLive, 90_000);
     return () => clearInterval(t);
   }, []);
+  // Fetch the wallet modules while the page is idle, so the first click does not
+  // spend its user activation on module loading.
+  useEffect(() => {
+    const idle = (window as any).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 800));
+    idle(() => warmWalletPath());
+  }, []);
   useEffect(() => {
     (window as any).__gotitRefreshLive = refreshLive;
   }, []);
@@ -220,7 +250,7 @@ function GotItApp() {
       // old `await connect()` hung forever with no message. This races it against
       // a clock and reports each phase, so the dialog can tell the user to go
       // unlock their wallet instead of appearing broken.
-      const { connectWithProgress } = await import("./lib/walletConnect");
+      const { connectWithProgress } = await walletLib();
       const connected = await connectWithProgress({
         networkId: NETWORK_ID,
         onPhase: setConnectPhase,
