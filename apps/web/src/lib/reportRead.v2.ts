@@ -30,10 +30,11 @@ import {
 import { assembleArt9Report, type Art9ReportBundle } from "./art9";
 import { connectGatedReader } from "./midnight.v2";
 import { crossCheckGroup } from "./gatedLogic";
+import { INDEXER_HTTP as indexerHttp, INDEXER_WS as indexerWs } from "./indexerConfig";
 
 const ORIGIN = typeof window !== "undefined" ? window.location.origin : "";
-const INDEXER_HTTP = `${ORIGIN}/indexer/api/v4/graphql`;
-const INDEXER_WS = `${ORIGIN.replace(/^http/, "ws")}/indexer/api/v4/graphql/ws`;
+const INDEXER_HTTP = indexerHttp;
+const INDEXER_WS = indexerWs;
 
 const provider = indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS);
 

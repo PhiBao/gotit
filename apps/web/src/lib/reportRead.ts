@@ -20,6 +20,7 @@ import {
   type ChainTotals,
   type VerificationResult,
 } from "./reportRead.logic";
+import { INDEXER_HTTP as indexerHttp, INDEXER_WS as indexerWs } from "./indexerConfig";
 
 export {
   buildReport,
@@ -31,11 +32,11 @@ export {
 };
 export { renderReportMarkdown, reportToJson } from "@gotit/shared/paygap";
 
-// Same-origin proxy (Caddy on Fly, Vite in dev). Upstream is the official Preprod
-// indexer, API v4 — the old blockfrost.lw.iog.io upstream now returns 410 Gone.
+// Same-origin proxy (Caddy on Fly, Vite in dev). The upstream host is configured
+// in the environment; see ./indexerConfig.ts.
 const ORIGIN = window.location.origin;
-const INDEXER_HTTP = `${ORIGIN}/indexer/api/v4/graphql`;
-const INDEXER_WS = `${ORIGIN.replace(/^http/, "ws")}/indexer/api/v4/graphql/ws`;
+const INDEXER_HTTP = indexerHttp;
+const INDEXER_WS = indexerWs;
 
 const provider = indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS);
 

@@ -27,6 +27,7 @@ import { requestCode, confirmCode, enrollLeaf } from "./lib/issuer";
 import type { GotItProviders } from "./lib/midnight";
 import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
 import type { IndexerReport } from "./lib/indexerStatus";
+import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH } from "./lib/indexerConfig";
 import { preflightV2Deploy, describePreflight } from "./lib/preflight";
 import { isLaceAvailable, getStoredContractAddress, setStoredContractAddress, getEffectiveIssuerKey, getBakedIssuerKey, getStoredIssuerKey, getStoredV2ContractAddress, setStoredV2ContractAddress } from "./lib/session";
 import type { LedgerSnapshot } from "./lib/ledger";
@@ -207,7 +208,7 @@ function GotItApp() {
   const connectChain = async () => {
     try {
       const { connectGotIt } = await midnightLib();
-      const providers = await connectGotIt("preprod");
+      const providers = await connectGotIt(NETWORK_ID);
       setChain({ providers });
       showToast("Lace connected — Preprod");
     } catch (e: any) {
@@ -311,6 +312,10 @@ function GotItApp() {
                     {indexer.action}
                   </div>
                 )}
+                <div className="small muted" style={{ marginTop: 4 }}>
+                  network <code>{NETWORK_ID}</code> · indexer path{" "}
+                  <code>{INDEXER_PATH}</code> · {networkCredentialsNote()}
+                </div>
               </div>
               <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                 {indexer.status.kind === "decommissioned" && indexer.status.migrationUrl && (

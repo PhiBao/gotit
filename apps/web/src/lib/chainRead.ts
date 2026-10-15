@@ -10,6 +10,7 @@ import { ledger as gotitLedger } from "@gotit/contract/managed/candor/contract";
 import { bucketKeyBytes, cutKeyBytes } from "@gotit/shared/hash";
 import { BUCKET_COUNT, type Cut, cutKeyString } from "@gotit/shared";
 import type { LedgerSnapshot } from "./ledger";
+import { INDEXER_HTTP as indexerHttp, INDEXER_WS as indexerWs } from "./indexerConfig";
 
 // The Preprod indexer's v4 GraphQL endpoint.
 //
@@ -18,12 +19,11 @@ import type { LedgerSnapshot } from "./ledger";
 // proxied transparently by every host, and keeping the indexer behind our own
 // origin means a change of indexer host does not need a rebuild.
 //
-// The previous upstream, blockfrost.lw.iog.io/midnight-preprod, now answers
-// 410 Gone ("Midnight endpoints have been removed from this proxy"). The
-// official host is indexer.preprod.midnight.network, API v4.
+// The upstream has moved twice; see ./indexerConfig.ts for the history and for
+// why the host lives in the environment rather than here.
 const ORIGIN = window.location.origin;
-const INDEXER_HTTP = `${ORIGIN}/indexer/api/v4/graphql`;
-const INDEXER_WS = `${ORIGIN.replace(/^http/, "ws")}/indexer/api/v4/graphql/ws`;
+const INDEXER_HTTP = indexerHttp;
+const INDEXER_WS = indexerWs;
 
 const provider = indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS);
 

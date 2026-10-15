@@ -187,6 +187,7 @@ to a member — it never sees the secret that derives the nullifier. Removing it
 
 - **App:** https://candor-midnight-web.fly.dev
 - **Issuer:** https://candor-midnight-issuer.fly.dev/health
+- **Preview (no token needed, works today):** https://candor-midnight-web-preview.fly.dev
 - **Report:** https://candor-midnight-web.fly.dev/#report
 - **Verify a report:** https://candor-midnight-web.fly.dev/#verify
 - **Report format, with illustrative data:** https://candor-midnight-web.fly.dev/#report&sample
@@ -232,7 +233,7 @@ Deploy your own instance: `fly deploy -c fly.issuer.toml` then `fly deploy -c fl
 | Browser chain path (Lace + Midnight.js 4.1.1) | **End-to-end verified on Preprod** with real transactions |
 | Compliance report UI | **Live** — Art. 9 tables, interval means, two-sided suppression, coverage disclosure, and an in-circuit k-gate. Reads the v2 ledger; says so plainly when there is nothing publishable rather than substituting data |
 | HRIS / payroll export connector | **Wave 3** |
-| Live on-chain reads | **DOWN — upstream outage.** The Midnight Preprod indexer was decommissioned on 2026-10-09 and moved to Blockfrost, which needs a project token. Every live read is affected, not just v2. The app states this in a banner and refuses to present sample data as chain data. See [docs/DEPLOY.md](docs/DEPLOY.md) §8b |
+| Live on-chain reads | **Depends on the deployment.** Preprod needs a Blockfrost token (one `fly secrets set` away — the app reports `Missing project token` until then). **Preview works today and needs no account**: https://candor-midnight-web-preview.fly.dev. See [docs/DEPLOY.md](docs/DEPLOY.md) §8b |
 | Hosted Fly environment | **Running** (1 machine per app) — pause/resume in [docs/DEPLOY.md](docs/DEPLOY.md) |
 | Demo video | **Not yet recorded** — shot list in [docs/DEMO.md](docs/DEMO.md) |
 

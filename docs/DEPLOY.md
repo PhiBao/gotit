@@ -172,60 +172,109 @@ Notes:
 - The issuer keeps verification leaves in memory, so a redeploy resets them; that is fine for
   demos (codes are issued in-band).
 
-## 8b. The indexer moved to Blockfrost (2026-10-09)
+## 8b. The indexer moved. Twice. Read this before deploying.
 
-> **Status: the app currently reads NO live chain state, and says so.**
+> **Summary.** Midnight decommissioned its Preprod and Mainnet indexers on
+> 2026-10-09 and moved both to Blockfrost, which needs a project token.
+> `preview` is still Midnight-hosted and needs no token. There are two working
+> deployments; pick by whether you want the existing contract or a fresh demo.
 
-`indexer.preprod.midnight.network` was **decommissioned on 2026-10-09**. It now answers every
-request with `410 Gone` and this body:
+### What happened
 
-```json
-{"errors":[{"message":"indexer.preprod.midnight.network was decommissioned on 2026-10-09. The Midnight indexer is now provided by Blockfrost.","extensions":{"code":"ENDPOINT_DECOMMISSIONED","migrationGuide":"https://docs.midnight.network/guides/networks-and-environments#blockfrost-the-mainnet-indexer-and-rpc-provider"}}]}
-```
+| # | Endpoint | Fate |
+|---|---|---|
+| 1 | `blockfrost.lw.iog.io/midnight-preprod` | 410 Gone, proxy retired (Sep 2026) |
+| 2 | `indexer.preprod.midnight.network/api/v4/graphql` | 410 Gone, decommissioned 2026-10-09 |
+| 3 | `midnight-preprod.blockfrost.io/api/v0` | **current for preprod** — needs a token |
+| — | `indexer.preview.midnight.network/api/v4/graphql` | **tokenless**, Midnight-hosted |
 
-The Midnight indexer is now Blockfrost, which authenticates with a **project token**. This is
-the second move — the first was `blockfrost.lw.iog.io` returning 410 in September.
+The Wave 1 contract lives on **Preprod**, so reading it needs a Blockfrost token.
+Midnight's own migration guide states Blockfrost "runs the same indexer API that
+the Midnight-hosted endpoints served, so a DApp moves to it by changing its
+endpoint URLs and adding a token, not by changing code" — so the only differences
+are the URL path and the credential.
 
-**What this breaks.** Every live read in the app goes through this endpoint: the landing page's
-chain stats, the v1 cut histograms, the Art. 9 report, the verification page, and the v2
-deploy (a deploy is a transaction, and transactions need the indexer). It is not a v2 problem.
+### Path A — Preprod, the existing contract (needs a Blockfrost token)
 
-**What the app does about it.** It refuses to present sample data as chain data and shows a
-banner naming the actual cause, with the migration link taken out of the 410 body rather than
-hardcoded. The distinction matters: "no reporting period has been run" and "we cannot reach the
-chain" are different facts, and a compliance product that renders the same empty state for both
-is hiding an outage behind a plausible page. See `apps/web/src/lib/indexerStatus.ts`.
-
-**To migrate.** Three steps, once you have a Blockfrost project token for Midnight Preprod:
-
-```bash
-# 1. the token, as a secret -- never in fly.web.toml, which is committed
-fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=preprod...
-
-# 2. point the proxy at Blockfrost (fly.web.toml [env])
-#    INDEXER_URL  = "https://midnight-preprod.blockfrost.io"
-#    INDEXER_HOST = "midnight-preprod.blockfrost.io"
-
-# 3. push the Caddyfile change too; it injects the token header
-fly deploy -c fly.web.toml
-```
-
-`deploy/Caddyfile` adds `header_up project_id {$BLOCKFROST_PROJECT_ID}` to the `/indexer/*`
-reverse proxy. That is why the token stays server-side: `indexerPublicDataProvider(queryURL,
-subscriptionURL)` takes no headers, so the browser could not send it anyway — and passing a
-credential through the client bundle is not something to do by accident.
-
-**One thing to verify before relying on it.** `indexerPublicDataProvider` speaks the Midnight
-indexer GraphQL schema (API v4). Blockfrost's Midnight endpoint is token-gated before routing,
-so whether it serves that same schema could not be confirmed without a token. Probe it first:
+The app is already configured for this and currently reports
+`Missing project token` on every live read, which is the only thing missing.
 
 ```bash
-pnpm --filter @gotit/contract verify:chain -- --address <addr> --categories engineering
+# 1. Get a token: sign up at blockfrost.io, create a project for
+#    "Midnight Preprod". The project ID starts with `nightpreprod`.
+#    Verify it before going further:
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"query":"{ block { height } }"}' \
+  "https://midnight-preprod.blockfrost.io/api/v0?project_id=$BLOCKFROST_PROJECT_ID"
+
+# 2. Set it as a SECRET (fly.web.toml is committed; a token is not):
+fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=nightpreprod...
+
+# 3. Nothing else. INDEXER_URL is already midnight-preprod.blockfrost.io and the
+#    build already uses /api/v0. The secret takes effect on the next boot.
 ```
 
-If it reports the schema as incompatible rather than reachable, the GraphQL layer needs a shim
-and that is a larger job than a config change. Running a local indexer against
-`midnight-node` is the fallback that does not depend on anyone else's infrastructure.
+The Caddyfile adds `header_up project_id {$BLOCKFROST_PROJECT_ID}` to the
+`/indexer/*` proxy. That is why the token stays server-side: a token in a
+browser-side URL is visible to anyone who loads the page and spends your quota,
+and `indexerPublicDataProvider(queryURL, subscriptionURL)` could not send a
+header from the browser anyway.
+
+### Path B — Preview, no account needed (this is the one that works today)
+
+`preview` needs no token, so a fresh clone can be brought up with nothing but a
+Fly account. `fly.web.preview.toml` is a complete deployment for it, and it is
+already live:
+
+```bash
+fly deploy -c fly.web.preview.toml
+# https://candor-midnight-web-preview.fly.dev
+```
+
+Verified: the app's `/indexer` proxy returns a live block height from the Preview
+indexer, the v2 artefacts are served, and the proof server is reachable. What
+Preview does **not** have is a GotIt contract, because the Wave 1 contract is on
+Preprod. So the first thing to do there is deploy one:
+
+1. Fund a wallet: request tNIGHT from the
+   [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/), then
+   **Generate tDUST** in Lace. Switch Lace to the **Preview** network.
+2. Open the app, **Operator**, **Deploy v2**.
+3. Contribute, or enroll and submit through the Operator console.
+
+The app is built with `VITE_MIDNIGHT_NETWORK=preview`, so midnight-js uses the
+right network ID. `VITE_INDEXER_PATH` is `/api/v4/graphql` for this one, because
+Preview is Midnight-hosted rather than Blockfrost.
+
+### Running entirely locally (no network at all)
+
+Midnight publishes a full local stack — node, indexer and proof server in Docker
+— via [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev).
+It initialises a pre-funded genesis wallet and funds test accounts, so it needs
+no faucet and has nothing at risk. Endpoints:
+
+```
+node      http://localhost:9944
+indexer   http://localhost:8088/api/v4/graphql   (ws on /ws)
+proof     http://localhost:6300
+```
+
+Then build the app with `VITE_MIDNIGHT_NETWORK=undeployed` and
+`VITE_INDEXER_PATH=/api/v4/graphql`, and point `INDEXER_URL` at
+`http://localhost:8088` with no token. This is the only configuration that
+depends on nobody else's infrastructure, which makes it the right fallback if a
+public endpoint moves again mid-demo.
+
+### What the app does when the indexer is unreachable
+
+It refuses to present sample data as chain data, and it names the actual cause
+instead of showing an empty chain. `apps/web/src/lib/indexerStatus.ts` classifies
+the response — 410 decommissioned (with the migration link read out of the body),
+403 missing or invalid token, 404 incompatible API or proxy path, 5xx unreachable
+— and the banner states which, with the fix. "Nobody has run a reporting period
+yet" and "we cannot reach the chain" are different facts, and a compliance
+product that renders the same empty state for both is hiding an outage behind a
+plausible page.
 
 ## 9. The indexer moved — check this after any infra change
 

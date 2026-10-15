@@ -9,6 +9,7 @@
  * - balancing + submission are wrapped around the connected wallet API
  */
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
+import { NETWORK_ID } from "./indexerConfig";
 import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
@@ -80,7 +81,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * `window.midnight` after page load. Tries the v4 `connect()` flow first,
  * falls back to legacy `enable()`.
  */
-export async function connectToWallet(networkId = "preprod"): Promise<ConnectedAPI> {
+export async function connectToWallet(networkId = NETWORK_ID): Promise<ConnectedAPI> {
   const deadline = Date.now() + 8_000;
   let initialAPI: InitialAPI | undefined;
   while (Date.now() < deadline) {
@@ -134,7 +135,7 @@ export type GotItProviders = {
 };
 
 /** Connect to the wallet and assemble the full provider bundle for GotIt. */
-export async function connectGotIt(networkId = "preprod"): Promise<GotItProviders> {
+export async function connectGotIt(networkId = NETWORK_ID): Promise<GotItProviders> {
   // Required by midnight-js before any wallet/contract operation
   setNetworkId(networkId);
   const connectedAPI = await connectToWallet(networkId);
