@@ -36,6 +36,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.3",
     "events": "^3.3.0",
+    "jsdom": "^25.0.1",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
     "vite-plugin-wasm": "^3.6.0",

@@ -28,6 +28,9 @@ import type { GotItProviders } from "./lib/midnight";
 import { describeFailure, failureReport, safeStringify } from "./lib/effectError";
 import type { IndexerReport } from "./lib/indexerStatus";
 import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH, INDEXER_HTTP, INDEXER_WS } from "./lib/indexerConfig";
+import { WalletGate, walletHint } from "./views/WalletGate";
+import { phaseLabel } from "./lib/walletConnect";
+import type { ConnectionPhase } from "./lib/walletConnect";
 import { preflightV2Deploy, describePreflight } from "./lib/preflight";
 import { isLaceAvailable, getStoredContractAddress, setStoredContractAddress, getEffectiveIssuerKey, getBakedIssuerKey, getStoredIssuerKey, getStoredV2ContractAddress, setStoredV2ContractAddress } from "./lib/session";
 import type { LedgerSnapshot } from "./lib/ledger";
@@ -179,6 +182,9 @@ function GotItApp() {
   }, [chain]);
   const [operatorOpen, setOperatorOpen] = useState(false);
   const [laceReady, setLaceReady] = useState(() => isLaceAvailable());
+  /** Live connection phase, so the gate can narrate instead of spinning. */
+  const [connectPhase, setConnectPhase] = useState<ConnectionPhase | null>(null);
+  const [connecting, setConnecting] = useState(false);
   useEffect(() => {
     // extensions inject after page load — re-check on focus and briefly after mount
     const recheck = () => setLaceReady(isLaceAvailable());
@@ -206,20 +212,33 @@ function GotItApp() {
   };
 
   const connectChain = async () => {
+    setConnectPhase({ kind: "detecting", detail: "Looking for a Midnight wallet…" });
+    setConnecting(true);
     try {
       const { connectGotIt } = await midnightLib();
-      const providers = await connectGotIt(NETWORK_ID);
+      // Narrated connect: a locked extension never settles its promise, so the
+      // old `await connect()` hung forever with no message. This races it against
+      // a clock and reports each phase, so the dialog can tell the user to go
+      // unlock their wallet instead of appearing broken.
+      const { connectWithProgress } = await import("./lib/walletConnect");
+      const connected = await connectWithProgress({
+        networkId: NETWORK_ID,
+        onPhase: setConnectPhase,
+      });
+      const providers = await connectGotIt(NETWORK_ID, connected as any);
       setChain({ providers });
-      showToast("Lace connected — Preprod");
+      setShowGate(false);
+      showToast(`Wallet connected — ${NETWORK_ID}`);
     } catch (e: any) {
-      const msg = String(e?.message ?? e).toLowerCase();
-      if (msg.includes("unlock") || msg.includes("locked")) {
-        showToast("Lace is locked — click the Lace icon to unlock, then try again");
-      } else if (msg.includes("rejected") || msg.includes("denied") || msg.includes("cancel")) {
-        showToast("Connection was cancelled");
-      } else {
-        showToast(e?.message ?? "Lace connection failed");
-      }
+      const phase = e?.phase ?? {
+        kind: "error" as const,
+        detail: String(e?.message ?? e),
+      };
+      setConnectPhase(phase);
+      // Stay open: the dialog renders the phase and the next step, which is more
+      // use than a toast that disappears.
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -254,16 +273,30 @@ function GotItApp() {
                 Reset sample data
               </button>
             )}
+            {!chain && walletHint(connectPhase, laceReady) && (
+              <span
+                className="small"
+                style={{ color: connectPhase?.kind === "needs-attention" ? "#fcd34d" : "var(--muted)", maxWidth: 260 }}
+              >
+                {walletHint(connectPhase, laceReady)}
+              </span>
+            )}
             {chain ? (
               <span className="badge" title={contractAddress ?? "no contract yet"}>
                 <span className="mono small">chain</span> <strong>Preprod ✓</strong>
               </span>
             ) : laceReady ? (
-              <button className="btn small" onClick={connectChain}>Connect Lace</button>
+              <button
+                className="btn small"
+                onClick={() => (connecting ? setShowGate(true) : setShowGate(true))}
+                title={walletHint(connectPhase, laceReady) ?? "Connect a Midnight wallet to contribute"}
+              >
+                {connecting ? phaseLabel(connectPhase ?? { kind: "requesting", detail: "", waitedMs: 0 }) : "Connect wallet"}
+              </button>
             ) : (
               <a className="btn small" href="https://www.lace.io/" target="_blank" rel="noreferrer"
                  title="Install the Lace extension (with Midnight support), then reload this page">
-                Install Lace
+                Get Lace
               </a>
             )}
             {chain && (
@@ -580,32 +613,14 @@ function GotItApp() {
         </div>
       )}
 
-      {showGate && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)", zIndex: 45, display: "grid", placeItems: "center", padding: 18 }}>
-          <div className="card" style={{ maxWidth: 520 }}>
-            <div className="card-pad" style={{ textAlign: "center" }}>
-              <h2 style={{ margin: "6px 0 8px" }}>Connect your wallet to contribute</h2>
-              <p className="small muted" style={{ lineHeight: 1.5 }}>
-                GotIt verifies you before you submit — one verified person, one contribution per epoch. Your salary proof is generated on your device.
-              </p>
-              {laceReady ? (
-                <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>
-                  <button className="btn btn-primary" onClick={async () => { setShowGate(false); await connectChain(); if ((window as any).__gotitChain) setView("contribute"); }}>Connect Lace</button>
-                  <button className="btn" onClick={() => setShowGate(false)}>Not now</button>
-                </div>
-              ) : (
-                <>
-                  <p className="small muted">Lace wallet not detected. Install it, then reload.</p>
-                  <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>
-                    <a className="btn btn-primary" href="https://www.lace.io/" target="_blank" rel="noreferrer">Install Lace</a>
-                    <button className="btn" onClick={() => setShowGate(false)}>Browse anyway</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <WalletGate
+        open={showGate}
+        phase={connectPhase}
+        installed={laceReady}
+        busy={connecting}
+        onConnect={connectChain}
+        onBrowse={() => setShowGate(false)}
+      />
 
       {operatorOpen && (
         <OperatorPanel

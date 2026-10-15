@@ -137,10 +137,21 @@ export type GotItProviders = {
 };
 
 /** Connect to the wallet and assemble the full provider bundle for GotIt. */
-export async function connectGotIt(networkId = NETWORK_ID): Promise<GotItProviders> {
+export async function connectGotIt(
+  networkId = NETWORK_ID,
+  /**
+   * An already-connected wallet API.
+   *
+   * The narrated connect flow in walletConnect.ts has to own the connect() call
+   * so it can race it against a clock and report phases; if this function
+   * connected again the user would get a second approval prompt. Passing the
+   * result in keeps one prompt per connection.
+   */
+  preConnected?: ConnectedAPI,
+): Promise<GotItProviders> {
   // Required by midnight-js before any wallet/contract operation
   setNetworkId(networkId);
-  const connectedAPI = await connectToWallet(networkId);
+  const connectedAPI = preConnected ?? (await connectToWallet(networkId));
 
   console.info("[gotit] fetching wallet configuration…");
   let uris = { ...FALLBACK_URIS };

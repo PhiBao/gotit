@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
+import react from "@vitejs/plugin-react";
 
 /**
  * Resolve workspace packages to their SOURCE, not their built dist.
@@ -48,9 +49,11 @@ function sourceExtPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [sourceExtPlugin()],
+  plugins: [react(), sourceExtPlugin()],
   test: {
-    environment: "node",
+    // jsdom so the .tsx render tests have a document. The .ts tests do not need
+    // it, but it costs little and keeps one config for the whole app.
+    environment: "jsdom",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
   resolve: {
