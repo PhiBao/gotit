@@ -153,7 +153,7 @@ pnpm dev                           # :5173, proxies /issuer
 ## 8. Hosted environment on Fly.io (pause / resume)
 
 Three Fly apps back the hosted demo: `candor-midnight-prover` (own proof server,
-`midnightntwrk/proof-server:8.1.0`), `candor-midnight-issuer` (Express), `candor-midnight-web`
+`midnightntwrk/proof-server:8.1.0`), `candor-midnight-issuer` (Express), `gotit-web`
 (Caddy serving the built app plus same-origin `/issuer`, `/indexer`, `/proof-server` proxies).
 
 **Pause (stop all compute spend)**
@@ -162,7 +162,7 @@ Three Fly apps back the hosted demo: `candor-midnight-prover` (own proof server,
 set -a; source .env; set +a          # FLY_ACCESS_TOKEN lives in .env
 fly scale count 0 -a candor-midnight-prover --yes
 fly scale count 0 -a candor-midnight-issuer --yes
-fly scale count 0 -a candor-midnight-web    --yes
+fly scale count 0 -a gotit-web    --yes
 ```
 
 `fly machine stop` is **not** enough: the web and prover configs set
@@ -174,9 +174,9 @@ A plain `fly deploy` leaves the *previous* machine behind alongside the new one.
 to one machine per app:
 
 ```bash
-fly machine list -a candor-midnight-web          # find the stale id
-fly machine stop   <stale-id> -a candor-midnight-web
-fly machine destroy <stale-id> -a candor-midnight-web --force
+fly machine list -a gotit-web          # find the stale id
+fly machine stop   <stale-id> -a gotit-web
+fly machine destroy <stale-id> -a gotit-web --force
 ```
 
 **Resume**
@@ -233,7 +233,7 @@ curl -s -X POST -H 'Content-Type: application/json' \
   "https://midnight-preprod.blockfrost.io/api/v0?project_id=$BLOCKFROST_PROJECT_ID"
 
 # 2. Set it as a SECRET (fly.web.toml is committed; a token is not):
-fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=nightpreprod...
+fly secrets set -a gotit-web BLOCKFROST_PROJECT_ID=nightpreprod...
 
 # 3. Nothing else. INDEXER_URL is already midnight-preprod.blockfrost.io and the
 #    build already uses /api/v0. The secret takes effect on the next boot.
@@ -245,31 +245,30 @@ browser-side URL is visible to anyone who loads the page and spends your quota,
 and `indexerPublicDataProvider(queryURL, subscriptionURL)` could not send a
 header from the browser anyway.
 
-### Path B — Preview, no account needed (this is the one that works today)
+### Path B — no token? Use Preview locally instead
 
-`preview` needs no token, so a fresh clone can be brought up with nothing but a
-Fly account. `fly.web.preview.toml` is a complete deployment for it, and it is
-already live:
+`preview` is the one public network Midnight still hosts itself and it needs **no token**, which
+makes it the fallback when Blockfrost is unavailable or you have no account. It is not a second
+deployment: keeping a whole extra Fly app alive for a network with no contract on it was cost and
+confusion for no benefit, so it was removed. Run it locally when you need it:
 
 ```bash
-fly deploy -c fly.web.preview.toml
-# https://candor-midnight-web-preview.fly.dev
+# 1. a build pointed at Preview
+VITE_MIDNIGHT_NETWORK=preview \
+VITE_INDEXER_PATH=/api/v4/graphql \
+VITE_INDEXER_WS_PATH=/api/v4/graphql/ws \
+pnpm --filter @gotit/web build
+
+# 2. serve it with the proxy pointed at Preview
+INDEXER_URL=https://indexer.preview.midnight.network \
+INDEXER_HOST=indexer.preview.midnight.network \
+pnpm --filter @gotit/web preview
 ```
 
-Verified: the app's `/indexer` proxy returns a live block height from the Preview
-indexer, the v2 artefacts are served, and the proof server is reachable. What
-Preview does **not** have is a GotIt contract, because the Wave 1 contract is on
-Preprod. So the first thing to do there is deploy one:
-
-1. Fund a wallet: request tNIGHT from the
-   [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/), then
-   **Generate tDUST** in Lace. Switch Lace to the **Preview** network.
-2. Open the app, **Operator**, **Deploy v2**.
-3. Contribute, or enroll and submit through the Operator console.
-
-The app is built with `VITE_MIDNIGHT_NETWORK=preview`, so midnight-js uses the
-right network ID. `VITE_INDEXER_PATH` is `/api/v4/graphql` for this one, because
-Preview is Midnight-hosted rather than Blockfrost.
+Preview has no GotIt contract, so the first thing to do there is deploy one: fund a wallet from the
+[Preview faucet](https://midnight-tmnight-preview.nethermind.dev/), switch Lace to **Preview**, and
+press **Deploy v2** in the Operator console. The report page will read it, and no token is involved
+anywhere.
 
 ### Running entirely locally (no network at all)
 
@@ -301,6 +300,17 @@ yet" and "we cannot reach the chain" are different facts, and a compliance
 product that renders the same empty state for both is hiding an outage behind a
 plausible page.
 
+## 8c. App names
+
+| App | Name | Why |
+|---|---|---|
+| Web | `gotit-web` | Judge-facing. The name is part of the product, so it matches it. |
+| Proof server | `candor-midnight-prover` | Infrastructure. Renaming a Fly app destroys its URL and its history, and nothing user-visible points at it — the browser reaches it through the web app's same-origin `/proof-server` proxy. |
+| Issuer | `candor-midnight-issuer` | Same reasoning, and it is only used by the work-email flow. |
+
+Both dated names are kept deliberately. Renaming them would mean re-pointing the proxy and
+re-verifying proving and enrolment, for a string that no visitor sees.
+
 ## 9. The indexer moved — check this after any infra change
 
 The browser reads contract state through a same-origin `/indexer/*` proxy (Caddy on Fly, Vite
@@ -308,18 +318,24 @@ in dev). Two upstreams have now failed us, so verify this path rather than assum
 
 | Upstream | Status |
 |---|---|
-| `blockfrost.lw.iog.io/midnight-preprod` | **410 Gone** — "Midnight endpoints have been removed from this proxy" |
-| `indexer.preprod.midnight.network` API **v4** | Current. `/api/v4/graphql`, WS at `/api/v4/graphql/ws` |
+| `blockfrost.lw.iog.io/midnight-preprod` | **410 Gone** — "Midnight endpoints have been removed from this proxy" (Sep 2026) |
+| `indexer.preprod.midnight.network` API v4 | **410 Gone** — decommissioned 2026-10-09 |
+| `midnight-preprod.blockfrost.io/api/v0` | **Current for Preprod.** Needs a project token; `/api/v0` and WS at `/api/v0/ws`. |
+| `indexer.preview.midnight.network/api/v4/graphql` | **Tokenless.** Midnight-hosted, still live. No contract of ours on it. |
+| `localhost:8088/api/v4/graphql` | A local network via `midnight-local-dev`. No token, no external dependency. |
 
 Caddy uses `uri strip_prefix /indexer` (not `handle_path`): the path suffix *is* the API path,
-so `/indexer/api/v4/graphql` must reach upstream as `/api/v4/graphql`, trailing slash intact.
+so `/indexer/api/v0` must reach upstream as `/api/v0`. Which path is correct depends on the
+upstream — `/api/v0` for Blockfrost, `/api/v4/graphql` for a Midnight-hosted endpoint — and the
+browser is told which via the `VITE_INDEXER_PATH` build arg.
 
 Check the proxy is actually serving data:
 
 ```bash
-curl -s -X POST https://candor-midnight-web.fly.dev/indexer/api/v4/graphql \
+# /api/v0 is Blockfrost. The old /api/v4/graphql path is the decommissioned one.
+curl -s -X POST https://gotit-web.fly.dev/indexer/api/v0 \
   -H 'content-type: application/json' \
-  -d '{"query":"query { contractAction(address: \"<CONTRACT>\") { __typename } }"}'
+  -d '{"query":"query { block { height } }"}'
 ```
 
 If the app shows the "sample data" badge while this returns data, the proxy config is wrong.

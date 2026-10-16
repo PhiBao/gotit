@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GotIt architecture: a private salary becomes a publishable count</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:#f4f2ec;color:#14161c;
+        padding:3rem 2rem;display:flex;justify-content:center}
+  figure{max-width:1000px;width:100%}
+  h1{font-family:'Instrument Serif',serif;font-weight:400;font-size:1.75rem;margin-bottom:.25rem}
+  p.sub{color:#4a4f5c;font-size:.85rem;margin-bottom:1.5rem}
+  .scroll{overflow-x:auto}
+  svg{min-width:960px;display:block}
+</style>
+</head>
+<body>
+<figure>
+  <h1>GotIt architecture: a private salary becomes a publishable count</h1>
+  <p class="sub">The salary exists on the employee's device. Everything to the right of it is public.</p>
+  <div class="scroll">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" role="img" aria-labelledby="architecture-title architecture-desc">
+  <title id="architecture-title">GotIt architecture: a private salary becomes a publishable count</title>
+  <desc id="architecture-desc">An employee&#x27;s salary stays on their device, becomes a zero-knowledge proof, then a counted figure in the Compact ledger, and finally a gated read that anyone can perform without a wallet.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a4f5c"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d6e6e"/>
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a8253c"/>
+    </marker>
+  </defs>
+  <!-- zones, then arrows, then nodes: z-order puts connections behind components -->
+  <rect x="492" y="92" width="436" height="118" rx="8" fill="rgba(20,22,28,0.02)" stroke="rgba(20,22,28,0.10)" stroke-width="0.8"/>
+  <rect x="502" y="96" width="87.60000000000001" height="12" rx="2" fill="#f4f2ec"/>
+  <text x="545.8" y="105" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.14em">MIDNIGHT PREPROD</text>
+  <rect x="700" y="276" width="236" height="118" rx="8" fill="rgba(20,22,28,0.02)" stroke="rgba(20,22,28,0.10)" stroke-width="0.8"/>
+  <rect x="710" y="280" width="92.32500000000002" height="12" rx="2" fill="#f4f2ec"/>
+  <text x="756.1625" y="289" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.14em">READS · NO WALLET</text>
+  <path d="M 170,151.0 H 266" fill="none" stroke="#a8253c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#arrow-link)"/>
+  <rect x="191.5" y="144.0" width="53.0" height="14" fill="#f4f2ec"/>
+  <text x="218.0" y="154.0" fill="#a8253c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">WITNESS</text>
+  <path d="M 406,151.0 H 512" fill="none" stroke="#4a4f5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="437.5" y="144.0" width="43.0" height="14" fill="#f4f2ec"/>
+  <text x="459.0" y="154.0" fill="#4a4f5c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">PROOF</text>
+  <path d="M 662,151.0 H 758" fill="none" stroke="#4a4f5c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#arrow)"/>
+  <rect x="686.0" y="144.0" width="48.0" height="14" fill="#f4f2ec"/>
+  <text x="710.0" y="154.0" fill="#4a4f5c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">EVENTS</text>
+  <path d="M 833.0,184 V 300" fill="none" stroke="#0d6e6e" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <rect x="796.5" y="235.0" width="73.0" height="14" fill="#f4f2ec"/>
+  <text x="833.0" y="245.0" fill="#0d6e6e" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">GATED READS</text>
+  <rect x="20" y="118" width="150" height="66" rx="6" fill="rgba(13,110,110,0.08)" stroke="#0d6e6e" stroke-width="1.2"/>
+  <text x="32" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Employee device</text>
+  <text x="32" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">salary = witness</text>
+  <text x="32" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">never leaves*</text>
+  <rect x="266" y="118" width="140" height="66" rx="6" fill="#f4f2ec" stroke="#b9b4a5" stroke-width="1"/>
+  <text x="278" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Proof server</text>
+  <text x="278" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">builds the proof</text>
+  <text x="278" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">we operate it</text>
+  <rect x="512" y="118" width="150" height="66" rx="6" fill="rgba(13,110,110,0.08)" stroke="#0d6e6e" stroke-width="1.2"/>
+  <text x="524" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">gotit.compact</text>
+  <text x="524" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">8 circuits</text>
+  <text x="524" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">counts, not people</text>
+  <rect x="758" y="118" width="150" height="66" rx="6" fill="#f4f2ec" stroke="#b9b4a5" stroke-width="1"/>
+  <text x="770" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Blockfrost indexer</text>
+  <text x="770" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">public ledger state</text>
+  <text x="770" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">token held by proxy</text>
+  <rect x="716" y="308" width="204" height="66" rx="6" fill="#f4f2ec" stroke="#b9b4a5" stroke-width="1"/>
+  <text x="728" y="330" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Anyone</text>
+  <text x="728" y="346" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">report page</text>
+  <text x="728" y="360" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">pnpm verify:chain</text>
+  <!-- editorial callouts -->
+  <rect x="20" y="280" width="300" height="96" rx="6" fill="#f4f2ec" stroke="#d5d1c4" stroke-width="1"/>
+  <text x="34" y="302" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" letter-spacing="0.14em">THE GATE</text>
+  <text x="34" y="324" fill="#14161c" font-size="11" font-family="'Instrument Serif',serif" font-style="italic">getGroupHistogram returns zero for any group</text>
+  <text x="34" y="340" fill="#14161c" font-size="11" font-family="'Instrument Serif',serif" font-style="italic">below k = 5 — the employer who deployed it too.</text>
+  <text x="34" y="368" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">enforced by the circuit, not the page</text>
+  <rect x="356" y="280" width="312" height="112" rx="6" fill="#f4f2ec" stroke="#d5d1c4" stroke-width="1"/>
+  <text x="370" y="302" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" letter-spacing="0.14em">* RESIDUAL TRUST</text>
+  <text x="370" y="324" fill="#14161c" font-size="11" font-family="'Instrument Serif',serif" font-style="italic">The proof server receives the witness to build</text>
+  <text x="370" y="340" fill="#14161c" font-size="11" font-family="'Instrument Serif',serif" font-style="italic">the proof. It does not record it, and a local run</text>
+  <text x="370" y="356" fill="#14161c" font-size="11" font-family="'Instrument Serif',serif" font-style="italic">avoids it entirely.</text>
+  <text x="370" y="384" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">pnpm dev:all — nothing leaves the machine</text>
+</svg>
+
+  </div>
+</figure>
+</body>
+</html>

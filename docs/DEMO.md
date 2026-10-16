@@ -9,10 +9,10 @@
 
 | URL | What it shows |
 |---|---|
-| `https://candor-midnight-web.fly.dev/` | The pitch, live network state, and the v1 contribution tool |
-| `https://candor-midnight-web.fly.dev/#report` | The Art. 9 report, reading the v2 ledger |
-| `https://candor-midnight-web.fly.dev/#report&sample` | The same page with **clearly-labelled illustrative data** |
-| `https://candor-midnight-web.fly.dev/#verify` | Public verification — paste a fingerprint, get match/mismatch |
+| `https://gotit-web.fly.dev/` | The pitch, live network state, and the v1 contribution tool |
+| `https://gotit-web.fly.dev/#report` | The Art. 9 report, reading the v2 ledger |
+| `https://gotit-web.fly.dev/#report&sample` | The same page with **clearly-labelled illustrative data** |
+| `https://gotit-web.fly.dev/#verify` | Public verification — paste a fingerprint, get match/mismatch |
 
 `#report` will say there is nothing publishable, because v2 is not deployed yet. That is the
 correct behaviour and worth saying out loud in the video: **the page does not fall back to

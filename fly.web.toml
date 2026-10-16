@@ -1,4 +1,4 @@
-app = "candor-midnight-web"
+app = "gotit-web"
 primary_region = "iad"
 
 [build]
@@ -33,7 +33,7 @@ primary_region = "iad"
   # Midnight-hosted endpoints served, so only the path and the token differ.
   #
   # REQUIRES A SECRET. Set it once:
-  #   fly secrets set -a candor-midnight-web BLOCKFROST_PROJECT_ID=nightpreprod...
+  #   fly secrets set -a gotit-web BLOCKFROST_PROJECT_ID=nightpreprod...
   # Without it Blockfrost answers 403 "Missing project token" and the app shows
   # that verbatim, rather than pretending the chain is empty. The Caddyfile adds
   # the header server-side so the token never reaches the browser.
