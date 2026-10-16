@@ -1,9 +1,14 @@
 /**
  * Render tests for the wallet gate.
  *
- * The gate is the first thing a new visitor with no wallet meets, so what it says
- * matters more than most copy: it has to explain that reading is free, name the
- * step that is blocking, and not look broken while a wallet is slow to answer.
+ * The gate is the first thing a visitor with no wallet meets, so what it says
+ * matters. It used to carry the whole setup procedure; that lives on `#guide` now,
+ * because a modal cannot be bookmarked and six steps in front of a button is a wall
+ * people scroll past. So these tests assert the two things the moment requires —
+ * reading is free, and here is where the connection is — plus that the guide is one
+ * press away.
+ *
+ * The setup instructions themselves are tested in GuidePage.test.tsx.
  */
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -17,6 +22,7 @@ const base = {
   busy: false,
   onConnect: () => {},
   onBrowse: () => {},
+  onOpenGuide: () => {},
 };
 
 const text = (el: React.ReactElement) =>
@@ -24,11 +30,11 @@ const text = (el: React.ReactElement) =>
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ");
 
-describe("the gate says reading needs no wallet", () => {
-  it("offers reading before asking for any setup", () => {
+describe("reading is offered before any setup", () => {
+  it("leads with not needing a wallet", () => {
     const t = text(<WalletGate {...base} installed={false} />);
     expect(t).toMatch(/do not need a wallet to read/i);
-    expect(t).toMatch(/Report and the verification page are open to anyone/i);
+    expect(t).toMatch(/report and the verification page are open to anyone/i);
     expect(t).toMatch(/Read without a wallet/);
   });
 
@@ -37,12 +43,11 @@ describe("the gate says reading needs no wallet", () => {
   });
 });
 
-describe("the gate names the blocking step", () => {
+describe("the gate names where the connection is", () => {
   it("points at installation when no extension exists", () => {
     const t = text(<WalletGate {...base} installed={false} />);
-    expect(t).toMatch(/Install the Lace extension/);
-    expect(t).toMatch(/lace\.io/);
-    expect(t).toMatch(/reload this page/);
+    expect(t).toMatch(/No wallet extension found/i);
+    expect(t).toMatch(/Get Lace/);
   });
 
   it("tells the user to unlock when the wallet is not answering", () => {
@@ -55,13 +60,13 @@ describe("the gate names the blocking step", () => {
         phase={{
           kind: "needs-attention",
           waitedMs: 9000,
-          detail: "The wallet has not answered. If it is locked, open the extension, unlock it, and approve the connection — the request is waiting for you there.",
+          detail:
+            "The wallet has not answered. Click the Lace icon in your browser toolbar — not the side panel — and approve the connection there.",
         }}
       />,
     );
-    expect(t).toMatch(/Unlock Lace/);
-    expect(t).toMatch(/locked wallet cannot show its approval prompt/i);
-    expect(t).toMatch(/request is waiting for you there/i);
+    expect(t).toMatch(/needs attention/i);
+    expect(t).toMatch(/Lace icon in your browser toolbar/);
   });
 
   it("says a declined connection was declined, and that retrying is safe", () => {
@@ -71,21 +76,35 @@ describe("the gate names the blocking step", () => {
         phase={{ kind: "rejected", detail: "The connection request was declined in the wallet." }}
       />,
     );
+    expect(t).toMatch(/did not complete/i);
     expect(t).toMatch(/declined/i);
-    expect(t).toMatch(/Nothing was sent to the network/);
-    expect(t).toMatch(/try again safely/i);
+    expect(t).toMatch(/Trying again is safe/);
   });
 
-  it("offers the faucet, which is what people actually get stuck on", () => {
+  it("shows a seconds counter while waiting", () => {
+    const t = text(
+      <WalletGate {...base} busy phase={{ kind: "requesting", detail: "Waiting…", waitedMs: 0 }} />,
+    );
+    expect(t).toMatch(/Wait/);
+  });
+});
+
+describe("the guide is one press away", () => {
+  it("links to it, and says why it exists", () => {
     const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/tDUST/);
-    expect(t).toMatch(/Preprod faucet/);
-    expect(t).toMatch(/Generate tDUST/);
+    expect(t).toMatch(/Open the setup guide/);
+    // The sync step is the one people skip, so the pointer says so.
+    expect(t).toMatch(/including the one everyone skips/i);
   });
 
-  it("warns not to combine the network and the wallet wrongly", () => {
+  it("does NOT carry the setup steps itself", () => {
+    // This is the regression worth pinning: the modal grew to six steps of
+    // install/unlock/update/faucet instructions. If they come back, this fails.
     const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/Preprod network/);
+    expect(t).not.toMatch(/Preprod faucet/);
+    expect(t).not.toMatch(/Generate tDUST/);
+    expect(t).not.toMatch(/Update Lace to the newest/);
+    expect(t).not.toMatch(/mn_addr_preprod1/);
   });
 });
 
@@ -100,38 +119,9 @@ describe("the always-visible hint", () => {
   });
 
   it("surfaces the two states that need the user", () => {
-    expect(walletHint({ kind: "needs-attention", detail: "", waitedMs: 9000 }, true)).toMatch(/Unlock Lace/);
+    expect(walletHint({ kind: "needs-attention", detail: "", waitedMs: 9000 }, true)).toMatch(
+      /Unlock Lace/,
+    );
     expect(walletHint({ kind: "rejected", detail: "" }, true)).toMatch(/declined/i);
-  });
-});
-
-describe("the two problems that actually cost time", () => {
-  it("tells people to update Lace, because an old build accepts connect and never answers", () => {
-    // This is not hypothetical: updating Lace is what fixed a hang where the
-    // wallet sat open, unlocked and funded while connect() never resolved.
-    const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/Update Lace to the newest version/);
-    expect(t).toMatch(/accept a connection request and never answer it/);
-  });
-
-  it("says the approval prompt is behind the toolbar icon, not the side panel", () => {
-    const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/Lace icon in your toolbar/);
-    expect(t).toMatch(/side panel/i);
-  });
-
-  it("explains the tDUST error rather than just linking the faucet", () => {
-    // "At least one Night UTXO is required" is Lace's message and it does not
-    // mention either cause. The two causes are worth an hour of confusion.
-    const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/unshielded/i);
-    expect(t).toMatch(/mn_addr_preprod1/);
-    expect(t).toMatch(/At least one Night UTXO is required/);
-    expect(t).toMatch(/pending|different address/i);
-  });
-
-  it("warns that a still-confirming transfer cannot be registered yet", () => {
-    const t = text(<WalletGate {...base} />);
-    expect(t).toMatch(/wait for the transfer to finish confirming/i);
   });
 });

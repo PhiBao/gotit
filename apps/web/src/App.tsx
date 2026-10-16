@@ -29,6 +29,7 @@ import { describeFailure, failureReport, safeStringify, friendlyChainError } fro
 import type { IndexerReport } from "./lib/indexerStatus";
 import { NETWORK_ID, networkCredentialsNote, INDEXER_PATH, INDEXER_HTTP, INDEXER_WS } from "./lib/indexerConfig";
 import { WalletGate, walletHint } from "./views/WalletGate";
+const GuidePage = lazy(() => import("./views/GuidePage"));
 import {
   loadCategories,
   mergeCategories,
@@ -79,10 +80,10 @@ const hashLib = () => import("@gotit/shared/hash");
 const ReportPage = lazy(() => import("./views/ReportPage"));
 const VerifyPage = lazy(() => import("./views/VerifyPage"));
 
-type View = "browse" | "cut" | "contribute" | "result" | "report" | "verify";
+type View = "browse" | "cut" | "contribute" | "result" | "report" | "verify" | "guide";
 
 /** Only the public, shareable views are deep-linkable — the rest need wallet state. */
-const HASHABLE: View[] = ["report", "verify", "browse"];
+const HASHABLE: View[] = ["report", "verify", "guide", "browse"];
 
 /**
  * Parse `#report` and `#report&sample` / `#report?sample`.
@@ -394,6 +395,9 @@ function GotItApp() {
             <button className="btn btn-ghost small" onClick={() => setView("report")} title="Art. 9 pay gap report, built from live chain state">
               Report
             </button>
+            <button className="btn btn-ghost small" onClick={() => setView("guide")} title="How to set up a wallet and contribute">
+              Setup
+            </button>
             <button className="btn btn-ghost small" onClick={() => setView("verify")} title="Check a published report against chain state">
               Verify
             </button>
@@ -679,6 +683,12 @@ function GotItApp() {
           <ReportPage />
         </Suspense>
       )}
+      {view === "guide" && (
+        <Suspense fallback={<div className="container" style={{ padding: "40px 20px" }}><div className="muted">Loading the setup guide…</div></div>}>
+          <GuidePage onBack={() => setView("browse")} />
+        </Suspense>
+      )}
+
       {view === "verify" && (
         <Suspense fallback={<div className="container" style={{ padding: "40px 20px" }}><div className="muted">Loading…</div></div>}>
           <VerifyPage />
@@ -709,6 +719,10 @@ function GotItApp() {
         busy={connecting}
         onConnect={connectChain}
         onBrowse={() => setShowGate(false)}
+        onOpenGuide={() => {
+          setShowGate(false);
+          setView("guide");
+        }}
       />
 
       {operatorOpen && (

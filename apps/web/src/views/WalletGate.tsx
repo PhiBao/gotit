@@ -3,32 +3,21 @@ import type { ConnectionPhase } from "../lib/walletConnect";
 import { phaseLabel, needsUserAction } from "../lib/walletConnect";
 
 /**
- * The wallet gate, written for someone who has never seen a Midnight wallet.
+ * The wallet gate, kept short.
  *
- * The previous version was a bare "Install Lace" link plus a Connect button that
- * could sit for a minute with no visible change, because a LOCKED extension
- * cannot show its approval popup and the connection promise never settles. A
- * first-time visitor read that as a broken site.
+ * This used to carry the entire setup procedure — install, unlock, update, faucet,
+ * unshielded address, tDUST. That was the wrong container: a modal cannot be
+ * bookmarked or read ahead of time, and six steps of instructions in front of a
+ * button is a wall people scroll past. The guide is a page now (`#guide`) and this
+ * says only the two things the moment requires:
  *
- * Three things a person needs, in order:
+ *   1. Reading needs no wallet. Offered before any setup is asked for.
+ *   2. Where the connection currently is, and what to do about it.
  *
- *   1. What is happening right now. Not a spinner — a sentence that changes as
- *      the situation does, because "asking your wallet" and "your wallet is not
- *      answering and is probably locked" call for different actions.
- *   2. What to click. The step that needs them is highlighted, with the one
- *      instruction that unblocks it.
- *   3. Why bother. Connecting is how a contribution is proven; reading needs no
- *      wallet at all, and saying that up front stops people bouncing.
- *
- * The panel is deliberately ordered so the first useful thing (read without a
- * wallet) is available before any setup is asked for.
+ * Everything else is one link away.
  */
 
 const LACE_URL = "https://www.lace.io/";
-/** Known-working floor. Older builds can accept connect() and never answer it. */
-const LACE_MIN = "the newest version";
-/** Free test funds. On Preprod the faucet dispenses tNIGHT, which generates tDUST. */
-const FAUCET_URL = "https://midnight-tmnight-preprod.nethermind.dev/";
 
 export type WalletGateProps = {
   open: boolean;
@@ -40,9 +29,18 @@ export type WalletGateProps = {
   busy: boolean;
   onConnect: () => void;
   onBrowse: () => void;
+  onOpenGuide: () => void;
 };
 
-export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }: WalletGateProps) {
+export function WalletGate({
+  open,
+  phase,
+  installed,
+  busy,
+  onConnect,
+  onBrowse,
+  onOpenGuide,
+}: WalletGateProps) {
   const [elapsed, setElapsed] = useState(0);
 
   // Tick only while a request is pending, so the guidance can escalate with time.
@@ -57,8 +55,8 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
 
   if (!open) return null;
 
-  const waiting = phase?.kind === "requesting" || phase?.kind === "needs-attention";
   const stuck = elapsed >= 6 || phase?.kind === "needs-attention";
+  const failed = phase?.kind === "error" || phase?.kind === "rejected";
 
   return (
     <div
@@ -76,114 +74,63 @@ export function WalletGate({ open, phase, installed, busy, onConnect, onBrowse }
       aria-modal="true"
       aria-label="Connect a wallet"
     >
-      <div
-        className="card card-pad"
-        style={{ maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto" }}
-      >
-        <div className="kicker">STEP 1 OF 2</div>
-        <h2 style={{ margin: "4px 0 8px", fontSize: 22 }}>
-          {phase?.kind === "needs-attention"
+      <div className="card card-pad" style={{ maxWidth: 480, width: "100%" }}>
+        <h2 style={{ margin: "0 0 10px", fontSize: 21 }}>
+          {stuck
             ? "Your wallet needs attention"
-            : phase?.kind === "error" || phase?.kind === "rejected"
+            : failed
               ? "Connection did not complete"
               : "Connect a wallet to contribute"}
         </h2>
 
-        {/* Lead with what needs no setup at all. */}
+        {/* The one thing a visitor needs before anything else. */}
         <div
           className="notice"
-          style={{ borderColor: "#14301e", background: "var(--green-bg)", lineHeight: 1.55 }}
+          style={{ borderColor: "#14301e", background: "var(--green-bg)", lineHeight: 1.6 }}
         >
           <b style={{ color: "var(--green)" }}>You do not need a wallet to read.</b> The report and
-          the verification page are open to anyone — no account, no permission. A wallet is only
-          for contributing a figure, because that is what makes the proof attributable to a human.
+          the verification page are open to anyone. A wallet is only for contributing a figure,
+          because that is a transaction.
         </div>
 
-        {/* A live status line, not a spinner. */}
         <StatusBlock phase={phase} busy={busy} stuck={stuck} elapsed={elapsed} installed={installed} />
 
-        {/* The steps, numbered, with the blocking one called out. */}
-        <ol style={{ margin: "14px 0 0", paddingLeft: 20, lineHeight: 1.7, fontSize: 14 }}>
-          <li style={{ color: installed ? "var(--muted)" : "var(--fg)" }}>
-            <b>Install the Lace extension.</b>{" "}
-            {installed ? (
-              <span className="muted">Already detected in this browser.</span>
-            ) : (
-              <>
-                <a href={LACE_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
-                  lace.io
-                </a>{" "}
-                — then reload this page.
-              </>
-            )}
-          </li>
-          <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
-            <b>Unlock Lace and switch it to {`the Preprod network`}.</b> A locked wallet cannot show
-            its approval prompt, which looks exactly like the button doing nothing.
-          </li>
-          <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
-            <b>Update Lace to the newest version.</b>{" "}
-            <span className="muted">
-              An out-of-date build can accept a connection request and never answer it, which looks
-              identical to a locked wallet. If Connect hangs with the wallet open and unlocked, this
-              is the first thing to try — it fixed exactly that case.
-            </span>{" "}
-            <a href={LACE_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
-              Check for updates
-            </a>
-            .
-          </li>
-          <li style={{ color: installed ? "var(--fg)" : "var(--muted)" }}>
-            <b>Press Connect, then approve in the Lace icon in your toolbar.</b> The side panel
-            shows your balances but does not always show connection requests, which is why the
-            button can seem to do nothing. You will need a little
-            tDUST to contribute, and it comes free from the{" "}
-            <a href={FAUCET_URL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
-              Preprod faucet
-            </a>
-            . Request tNIGHT to your <b>unshielded</b> address (it starts{" "}
-            <code>mn_addr_preprod1…</code>) — not the shielded one. Then wait for the transfer to
-            finish confirming before pressing <b>Generate tDUST</b> in Lace.{` `}
-            <span className="muted">
-              If Lace says <i>&quot;At least one Night UTXO is required&quot;</i>, the tNIGHT is
-              either still pending or was sent to a different address: Lace can only register NIGHT
-              it holds unshielded and confirmed.
-            </span>
-          </li>
-        </ol>
-
-        {stuck && (
-          <div
-            className="notice"
-            style={{ marginTop: 14, borderColor: "#713f12", background: "#1a1500", lineHeight: 1.55, fontSize: 13 }}
-          >
-            <b style={{ color: "#fcd34d" }}>Lace has not answered.</b> Click the Lace icon in your
-            browser toolbar — the little fox/loop icon next to the address bar — and look for a
-            connection request inside. If Lace shows your account instead, it is unlocked and the
-            request has not reached it yet: close the side panel, click the toolbar icon, and press
-            Connect once more.
-          </div>
-        )}
-
-        <div className="row" style={{ gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+        <div className="row" style={{ gap: 8, marginTop: 16, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={onConnect} disabled={busy}>
-            {busy ? phaseLabel(phase ?? { kind: "requesting", detail: "", waitedMs: 0 }) : "Connect Lace"}
+            {busy ? phaseLabel(phase ?? { kind: "requesting", detail: "", waitedMs: 0 }) : "Connect wallet"}
           </button>
           <button className="btn" onClick={onBrowse}>
             Read without a wallet
           </button>
-          {!installed && (
-            <a className="btn btn-ghost" href={LACE_URL} target="_blank" rel="noreferrer">
+        </div>
+
+        <div className="small muted" style={{ marginTop: 14, lineHeight: 1.6 }}>
+          First time, or something not working?{" "}
+          <button
+            className="btn btn-ghost small"
+            style={{ padding: "2px 8px" }}
+            onClick={onOpenGuide}
+          >
+            Open the setup guide
+          </button>{" "}
+          — six steps, including the one everyone skips.
+        </div>
+
+        {!installed && (
+          <div className="small muted" style={{ marginTop: 10 }}>
+            No wallet extension found in this browser.{" "}
+            <a href={LACE_URL} target="_blank" rel="noreferrer" className="link">
               Get Lace
             </a>
-          )}
-        </div>
+            .
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/** The changing sentence that tells the user where they are. */
+/** One changing sentence about where the connection is. */
 function StatusBlock({
   phase,
   busy,
@@ -197,12 +144,11 @@ function StatusBlock({
   elapsed: number;
   installed: boolean;
 }) {
-  // Nothing has been attempted yet: give the calm starting state.
   if (!busy && !phase) {
     return (
-      <div className="small muted" style={{ marginTop: 12, lineHeight: 1.55 }}>
+      <div className="small muted" style={{ marginTop: 12, lineHeight: 1.6 }}>
         {installed
-          ? "A wallet extension is available in this browser. Press Connect to continue."
+          ? "A wallet extension is available in this browser."
           : "No wallet extension was found in this browser yet."}
       </div>
     );
@@ -211,7 +157,7 @@ function StatusBlock({
   const tone =
     phase?.kind === "connected"
       ? { border: "#14301e", bg: "var(--green-bg)", color: "var(--green)" }
-      : phase?.kind === "needs-attention" || stuck || phase?.kind === "error" || phase?.kind === "rejected"
+      : stuck || phase?.kind === "error" || phase?.kind === "rejected"
         ? { border: "#713f12", bg: "#1a1500", color: "#fcd34d" }
         : { border: "var(--line)", bg: "var(--panel2)", color: "var(--fg)" };
 
@@ -223,7 +169,7 @@ function StatusBlock({
         borderColor: tone.border,
         background: tone.bg,
         color: tone.color,
-        lineHeight: 1.55,
+        lineHeight: 1.6,
         fontSize: 13,
       }}
     >
@@ -232,18 +178,16 @@ function StatusBlock({
         {busy && elapsed > 0 && <span className="mono small">{elapsed}s</span>}
       </div>
       {phase && <div style={{ marginTop: 4 }}>{phase.detail}</div>}
-      {phase && phase.kind === "error" && phase.hint && (
-        <div style={{ marginTop: 4 }}>{phase.hint}</div>
-      )}
+      {phase?.kind === "error" && phase.hint && <div style={{ marginTop: 4 }}>{phase.hint}</div>}
       {busy && stuck && phase?.kind !== "needs-attention" && (
         <div style={{ marginTop: 6 }}>
-          This is taking longer than usual. Open the Lace extension and unlock it — the request is
-          waiting for you there.
+          Taking longer than usual. Open the Lace extension and unlock it — the request is waiting
+          for you there.
         </div>
       )}
       {phase && needsUserAction(phase) && (
         <div style={{ marginTop: 6 }}>
-          Nothing was sent to the network. You can try again safely.
+          Nothing was sent to the network. Trying again is safe.
         </div>
       )}
     </div>
@@ -251,10 +195,10 @@ function StatusBlock({
 }
 
 /**
- * The small always-visible hint under the header Connect button.
+ * The always-visible hint under the header Connect button.
  *
- * Gives the next action without opening the dialog, for someone who is already
- * half-way through setup.
+ * Gives the next action without opening the dialog, for someone already half-way
+ * through setup.
  */
 export function walletHint(phase: ConnectionPhase | null, installed: boolean): string | null {
   if (!installed) return "Install Lace to contribute — reading needs no wallet.";
