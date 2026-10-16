@@ -173,6 +173,20 @@ function GotItApp() {
   const contractAddress = getStoredContractAddress();
 
   /**
+   * The v2 ledger's counters, for the landing card.
+   *
+   * The card used to show the v1 numbers, because it read the same state the Wave 1
+   * cut grid reads. That made the landing page claim "verified submissions 2" while
+   * the report page showed 13 — two different contracts, one product, and a
+   * contradiction a visitor sees in the first ten seconds.
+   *
+   * v1 keeps its own read for the cut grid, which is Wave 1's surface and correctly
+   * reflects Wave 1's ledger.
+   */
+  const v2ContractAddress = getStoredV2ContractAddress();
+  const [liveV2, setLiveV2] = useState<{ epoch: number; members: number; submissions: number } | null>(null);
+
+  /**
    * The indexer's state, probed once and refreshed with the live read.
    *
    * The app has always refused to present sample data as chain data. This is the
@@ -187,6 +201,12 @@ function GotItApp() {
     try {
       const { readGotItState } = await chainReadLib();
       setLive(await readGotItState(contractAddress));
+      // The Art. 9 ledger, which is what the product is about now.
+      if (v2ContractAddress) {
+        const { readV2Shape } = await import("./lib/reportRead.v2");
+        const shape = await readV2Shape(v2ContractAddress);
+        setLiveV2({ epoch: shape.epoch, members: shape.members, submissions: shape.submissions });
+      }
       setIndexer(null);
     } catch (e: any) {
       console.warn("[gotit] live read unavailable:", describeFailure(e));
@@ -538,18 +558,28 @@ function GotItApp() {
             </div>
             <div className="sep" />
             <div className="small muted" style={{ lineHeight: 1.5, marginBottom: 2 }}>
-              {live ? "Live ledger state" : "Sample dataset — not chain data"}
+              {liveV2
+                ? "Live on-chain — Art. 9 ledger"
+                : live
+                  ? "Live on-chain — Wave 1 ledger"
+                  : "Sample dataset — not chain data"}
             </div>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
                 <div className="small muted">Verified submissions</div>
                 <div style={{ fontSize: 22, fontWeight: 800 }}>
-                  {live ? live.submissions : Object.values(displayLedger.histogram).reduce((a, b) => a + b, 0)}
+                  {liveV2
+                    ? liveV2.submissions
+                    : live
+                      ? live.submissions
+                      : Object.values(displayLedger.histogram).reduce((a, b) => a + b, 0)}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="small muted">Reporting period</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>{live ? live.epoch : displayLedger.epoch}</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>
+                  {liveV2 ? liveV2.epoch : live ? live.epoch : displayLedger.epoch}
+                </div>
               </div>
             </div>
             <div className="notice" style={{ marginTop: 12 }}>

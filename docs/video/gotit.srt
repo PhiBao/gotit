@@ -1,0 +1,97 @@
+1
+00:00:00,100 --> 00:00:07,496
+From June 2027, every EU employer with more than one hundred and fifty
+staff must publish its gender pay gap.
+
+2
+00:00:07,447 --> 00:00:12,643
+GotIt produces that report from a ledger that holds counts, and never
+a salary.
+
+3
+00:00:13,250 --> 00:00:15,752
+The directive sets a trap.
+
+4
+00:00:15,702 --> 00:00:22,850
+You must publish group statistics, and data protection law says those
+same statistics must never identify anyone.
+
+5
+00:00:22,850 --> 00:00:28,032
+Today it is solved by exporting a spreadsheet and deleting small
+groups by hand.
+
+6
+00:00:28,032 --> 00:00:31,104
+That is an assertion nobody can check.
+
+7
+00:00:31,719 --> 00:00:35,965
+This is the live report, read from a contract on Preprod.
+
+8
+00:00:35,915 --> 00:00:38,454
+No wallet, no account.
+
+9
+00:00:38,454 --> 00:00:41,306
+Thirteen people have contributed.
+
+10
+00:00:41,306 --> 00:00:49,757
+Engineering has five women and five men, and the gap is material, so
+the report flags it and the interval shows how far it can be trusted.
+
+11
+00:00:50,359 --> 00:00:52,823
+Everything else is withheld.
+
+12
+00:00:52,772 --> 00:01:04,855
+The contract returns zero for any group below the anonymity threshold,
+and that gate is evaluated inside the circuit, so the employer who
+
+13
+00:01:05,469 --> 00:01:08,505
+Anyone can check a published report.
+
+14
+00:01:08,454 --> 00:01:14,028
+Paste its fingerprint, and the page re-reads chain state and answers
+match or mismatch.
+
+15
+00:01:14,028 --> 00:01:17,414
+No wallet, no account, no permission.
+
+16
+00:01:18,019 --> 00:01:21,823
+The figures are reproducible, not just asserted.
+
+17
+00:01:21,774 --> 00:01:31,709
+One command reads the ledger and prints the report, and forty-five
+tests run the generated contract off chain, so a drift between the
+
+18
+00:01:32,319 --> 00:01:36,552
+Contributing does need a wallet, because it is a transaction.
+
+19
+00:01:36,503 --> 00:01:45,358
+The app says that plainly, and the setup guide walks through it:
+install Lace, switch to Preprod, wait for the sync to finish, then get
+
+20
+00:01:45,969 --> 00:01:50,425
+Provable, unlinkable, and on the employee's side of the table.
+
+21
+00:01:50,375 --> 00:01:54,346
+The contract, the report and the tests are all public.
+
+22
+00:01:54,346 --> 00:01:55,909
+Thank you.
+

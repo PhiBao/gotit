@@ -725,6 +725,7 @@ scripts/                  artefact check, submission lint
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Deployment, wallet funding, the indexer migration, troubleshooting |
 | [docs/DEMO.md](docs/DEMO.md) | Demo guide |
 | [docs/VIDEO-SCRIPT.md](docs/VIDEO-SCRIPT.md) | Word-for-word video script with setup checklist and recovery lines |
+| [docs/video/](docs/video/) | The generated demo video's sources — story, branding, subtitles |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security notes |
 | [docs/WAVE1-POSTMORTEM.md](docs/WAVE1-POSTMORTEM.md) | Why the previous submission scored zero |
 | [docs/diagrams/](docs/diagrams/) | Diagram sources — regenerable with `python3 docs/diagrams/build_*.py` |

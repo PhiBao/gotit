@@ -1,0 +1,277 @@
+{
+  "voice": "en-US-GuyNeural",
+  "segments": [
+    {
+      "id": "s1_title",
+      "text": "From June 2027, every EU employer with more than one hundred and fifty staff must publish its gender pay gap. GotIt produces that report from a ledger that holds counts, and never a salary.",
+      "scene": {
+        "kind": "card",
+        "template": "title-left",
+        "vars": {
+          "kicker": "DIRECTIVE (EU) 2023/970 &middot; ART. 9"
+        }
+      }
+    },
+    {
+      "id": "s2_problem",
+      "text": "The directive sets a trap. You must publish group statistics, and data protection law says those same statistics must never identify anyone. Today it is solved by exporting a spreadsheet and deleting small groups by hand. That is an assertion nobody can check.",
+      "scene": {
+        "kind": "page",
+        "src": "https://gotit-web.fly.dev/",
+        "zoom": 1.35,
+        "wait_for": [
+          "text=Publish a pay gap report"
+        ],
+        "settle": 1.0,
+        "actions": [
+          {
+            "action": "move",
+            "x": 0.32,
+            "y": 0.3,
+            "dur": 0.7
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.12,
+            "dur": 1.0,
+            "after": 0.2
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.3,
+            "dur": 1.0,
+            "after": 0.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "s3_report",
+      "text": "This is the live report, read from a contract on Preprod. No wallet, no account. Thirteen people have contributed. Engineering has five women and five men, and the gap is material, so the report flags it and the interval shows how far it can be trusted.",
+      "scene": {
+        "kind": "page",
+        "src": "https://gotit-web.fly.dev/#report",
+        "zoom": 1.3,
+        "wait_for": [
+          "text=Enrolled members"
+        ],
+        "settle": 1.4,
+        "actions": [
+          {
+            "action": "move",
+            "x": 0.4,
+            "y": 0.5,
+            "dur": 0.7
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.3,
+            "dur": 1.4,
+            "after": 0.8
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.46,
+            "dur": 1.4,
+            "after": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "s4_gate",
+      "text": "Everything else is withheld. The contract returns zero for any group below the anonymity threshold, and that gate is evaluated inside the circuit, so the employer who deployed it gets zeros too, and cannot write a reader that skips the check.",
+      "scene": {
+        "kind": "page",
+        "src": "https://gotit-web.fly.dev/#report",
+        "zoom": 1.3,
+        "wait_for": [
+          "text=Enrolled members"
+        ],
+        "settle": 1.4,
+        "actions": [
+          {
+            "action": "move",
+            "x": 0.4,
+            "y": 0.6,
+            "dur": 0.7
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.66,
+            "dur": 1.6,
+            "after": 1.4
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.8,
+            "dur": 1.6,
+            "after": 1.6
+          }
+        ]
+      }
+    },
+    {
+      "id": "s5_verify",
+      "text": "Anyone can check a published report. Paste its fingerprint, and the page re-reads chain state and answers match or mismatch. No wallet, no account, no permission.",
+      "scene": {
+        "kind": "page",
+        "src": "https://gotit-web.fly.dev/#verify",
+        "zoom": 1.4,
+        "wait_for": [
+          "text=Check a report"
+        ],
+        "settle": 1.0,
+        "actions": [
+          {
+            "action": "move",
+            "x": 0.4,
+            "y": 0.4,
+            "dur": 0.7
+          },
+          {
+            "action": "click",
+            "sel": "input",
+            "after": 0.4
+          },
+          {
+            "action": "type",
+            "sel": "input",
+            "text": "378071039791c6a9",
+            "cps": 12,
+            "after": 0.5
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.34,
+            "dur": 1.0,
+            "after": 1.4
+          }
+        ]
+      }
+    },
+    {
+      "id": "s6_proof",
+      "text": "The figures are reproducible, not just asserted. One command reads the ledger and prints the report, and forty-five tests run the generated contract off chain, so a drift between the browser and the circuit fails the build.",
+      "scene": {
+        "kind": "term",
+        "title": "reproduce the filing from public chain state",
+        "lines": [
+          {
+            "at": 0.4,
+            "type": "cmd",
+            "text": "pnpm verify:chain --address 92fb35db... --categories engineering,sales",
+            "cps": 30
+          },
+          {
+            "at": 3.0,
+            "text": "reporting period 1   threshold k=5",
+            "cls": "dim"
+          },
+          {
+            "at": 3.8,
+            "text": "members: 13          submissions: 13",
+            "cls": "dim"
+          },
+          {
+            "at": 4.6,
+            "text": "reportable rows: 1   withheld: 7",
+            "cls": "dim"
+          },
+          {
+            "at": 5.6,
+            "type": "rule"
+          },
+          {
+            "at": 6.3,
+            "text": "## engineering &middot; Base salary",
+            "cls": "white"
+          },
+          {
+            "at": 7.2,
+            "text": "   Headcount        5 women    5 men",
+            "cls": "dim"
+          },
+          {
+            "at": 8.1,
+            "text": "   Mean pay gap     115.0% - 273.3%",
+            "cls": "amb"
+          },
+          {
+            "at": 9.2,
+            "text": "   No wallet. No key. No permission.",
+            "cls": "green",
+            "flash": "g"
+          },
+          {
+            "at": 10.6,
+            "type": "gap"
+          },
+          {
+            "at": 11.2,
+            "type": "cmd",
+            "text": "pnpm --filter @gotit/contract test",
+            "cps": 30
+          },
+          {
+            "at": 12.8,
+            "text": "Tests  45 passed (45)",
+            "cls": "green",
+            "flash": "g"
+          }
+        ]
+      }
+    },
+    {
+      "id": "s7_setup",
+      "text": "Contributing does need a wallet, because it is a transaction. The app says that plainly, and the setup guide walks through it: install Lace, switch to Preprod, wait for the sync to finish, then get free test funds.",
+      "scene": {
+        "kind": "page",
+        "src": "https://gotit-web.fly.dev/",
+        "zoom": 1.35,
+        "wait_for": [
+          "text=Publish a pay gap report"
+        ],
+        "settle": 1.0,
+        "actions": [
+          {
+            "action": "move",
+            "x": 0.76,
+            "y": 0.06,
+            "dur": 0.7
+          },
+          {
+            "action": "click",
+            "sel": "text=Contribute",
+            "after": 1.6
+          },
+          {
+            "action": "move",
+            "x": 0.5,
+            "y": 0.7,
+            "dur": 0.6
+          },
+          {
+            "action": "click",
+            "sel": "text=Open the setup guide",
+            "after": 1.8
+          },
+          {
+            "action": "scrollTo",
+            "y": 0.3,
+            "dur": 1.3,
+            "after": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "s8_close",
+      "text": "Provable, unlinkable, and on the employee's side of the table. The contract, the report and the tests are all public. Thank you.",
+      "scene": {
+        "kind": "card",
+        "template": "close-left"
+      }
+    }
+  ]
+}

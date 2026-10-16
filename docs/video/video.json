@@ -1,0 +1,40 @@
+{
+  "name": "gotit",
+  "output": "out/gotit.mp4",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "voice": "en-US-GuyNeural",
+  "rate": "-4%",
+  "volume": "+0%",
+  "pad": 0.45,
+  "trim": 0.6,
+  "crf": 20,
+  "preset": "medium",
+  "burn_subtitles": true,
+  "loudness": "I=-16:TP=-1.5:LRA=11",
+  "subtitle_style": "FontName=DejaVu Sans,FontSize=30,PrimaryColour=&HFFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=46,PlayResX=1920,PlayResY=1080",
+  "theme": {
+    "bg": "#08080a",
+    "accent1": "#f5c518",
+    "accent2": "#f5c518",
+    "accent3": "#8a8a92",
+    "ink": "#f4f4f2",
+    "muted": "#a1a1aa",
+    "faint": "#6f6f78",
+    "hi": "#f5c518",
+    "hi2": "#e8e8e6",
+    "subc": "#f5c518",
+    "shade": "rgba(0,0,0,.32)"
+  },
+  "branding": {
+    "name": "GOTIT",
+    "tagline": "PUBLISH A PAY GAP REPORT &middot; NEVER EXPOSE ONE EMPLOYEE",
+    "sub": "Directive (EU) 2023/970 Art. 9 &middot; enforced on Midnight Preprod",
+    "note": "The salary is a private input. Only counts reach the ledger.",
+    "meta": "Midnight Buildathon &middot; Wave 2 &middot; 1920&times;1080",
+    "headline": "<b>A pay gap report anyone can check.</b><br><i>Not one employee exposed to produce it.</i>",
+    "links": "gotit-web.fly.dev &nbsp;&middot;&nbsp; github.com/PhiBao/gotit",
+    "footnote": "read the report, verify the fingerprint, reproduce it from chain state"
+  }
+}
