@@ -151,6 +151,11 @@ class Canvas:
         return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.w} {self.h}" role="img" aria-labelledby="{slug}-title {slug}-desc">
   <title id="{slug}-title">{esc(title)}</title>
   <desc id="{slug}-desc">{esc(desc)}</desc>
+  <!-- OPAQUE BACKGROUND. A transparent SVG inherits whatever the host page paints,
+       and GitHub renders this in <img> context: on the dark theme the page is
+       near-black and dark ink disappears entirely. The diagram carries its own
+       paper so it reads the same in both themes. -->
+  <rect x="0" y="0" width="100%" height="100%" fill="{PAPER}"/>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="{MUTED}"/>

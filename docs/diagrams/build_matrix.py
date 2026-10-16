@@ -78,7 +78,13 @@ def build() -> str:
              f'  <title id="matrix-title">Who can see what in GotIt</title>',
              f'  <desc id="matrix-desc">A matrix of four kinds of data against six parties. '
              f'The individual salary is visible to the employee alone; the published report is '
-             f'visible to everyone.</desc>']
+             f'visible to everyone.</desc>',
+             # Opaque background. A transparent SVG inherits whatever the host page
+             # paints, and GitHub renders this in <img> context: on the dark theme
+             # the page is near-black and dark ink disappears. The diagram carries
+             # its own paper so it reads the same in both themes. (The f prefix
+             # matters: without it the fill stays literal.)
+             f"""  <rect x="0" y="0" width="100%" height="100%" fill="{PAPER}"/>"""]
 
     # ---- column headers ----
     for i, (title, sub) in enumerate(COLS):

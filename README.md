@@ -471,7 +471,8 @@ Contributing needs a wallet, because a contribution is a transaction. Reading ne
 
 ### Demo flow (3 minutes)
 
-`docs/DEMO.md` is a full shot list. The short version:
+`docs/DEMO.md` is the demo guide and `docs/VIDEO-SCRIPT.md` is a word-for-word script with a
+setup checklist. The short version:
 
 1. `#report&sample` — intervals, a material gap, a withheld category, the coverage note.
 2. `#verify` — paste, match, then tamper and watch it mismatch.
@@ -720,7 +721,8 @@ scripts/                  artefact check, submission lint
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | Product specification, reporting model, the gate, the read split |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Deployment, wallet funding, the indexer migration, troubleshooting |
-| [docs/DEMO.md](docs/DEMO.md) | Demo guide and video shot list |
+| [docs/DEMO.md](docs/DEMO.md) | Demo guide |
+| [docs/VIDEO-SCRIPT.md](docs/VIDEO-SCRIPT.md) | Word-for-word video script with setup checklist and recovery lines |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security notes |
 | [docs/WAVE1-POSTMORTEM.md](docs/WAVE1-POSTMORTEM.md) | Why the previous submission scored zero |
 | [docs/diagrams/](docs/diagrams/) | Diagram sources — regenerable with `python3 docs/diagrams/build_*.py` |

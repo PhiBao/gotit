@@ -1,43 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" role="img" aria-labelledby="architecture-title architecture-desc" id="architecture-root">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" role="img" aria-labelledby="architecture-title architecture-desc">
   <title id="architecture-title">GotIt architecture: a private salary becomes a publishable count</title>
   <desc id="architecture-desc">An employee&#x27;s salary stays on their device, becomes a zero-knowledge proof, then a counted figure in the Compact ledger, and finally a gated read that anyone can perform without a wallet.</desc>
+  <!-- OPAQUE BACKGROUND. A transparent SVG inherits whatever the host page paints,
+       and GitHub renders this in <img> context: on the dark theme the page is
+       near-black and dark ink disappears entirely. The diagram carries its own
+       paper so it reads the same in both themes. -->
+  <rect x="0" y="0" width="100%" height="100%" fill="#f4f2ec"/>
   <defs>
-      <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;family=Noto+Serif:ital@0;1&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;family=Noto+Sans+TC:wght@400;500;600&amp;family=Noto+Serif+TC:wght@400&amp;display=swap');
-      #architecture-root { font-family: 'Geist',system-ui,sans-serif; color: #14161c; }
-      #architecture-root figure { max-width:1000px;width:100% }
-      #architecture-root p.sub { color:#4a4f5c;font-size:.85rem;margin-bottom:1.5rem }
-      #architecture-root .scroll { overflow-x:auto }</style>
-    <marker id="architecture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a4f5c"/>
     </marker>
-    <marker id="architecture-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d6e6e"/>
     </marker>
-    <marker id="architecture-arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#a8253c"/>
     </marker>
   </defs>
   <!-- zones, then arrows, then nodes: z-order puts connections behind components -->
-  <rect x="492" y="92" width="436" height="118" rx="8" fill="#14161c" fill-opacity="0.02" stroke="#14161c" stroke-opacity="0.10" stroke-width="0.8"/>
+  <rect x="492" y="92" width="436" height="118" rx="8" fill="rgba(20,22,28,0.02)" stroke="rgba(20,22,28,0.10)" stroke-width="0.8"/>
   <rect x="502" y="96" width="87.60000000000001" height="12" rx="2" fill="#f4f2ec"/>
   <text x="545.8" y="105" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.14em">MIDNIGHT PREPROD</text>
-  <rect x="700" y="276" width="236" height="118" rx="8" fill="#14161c" fill-opacity="0.02" stroke="#14161c" stroke-opacity="0.10" stroke-width="0.8"/>
+  <rect x="700" y="276" width="236" height="118" rx="8" fill="rgba(20,22,28,0.02)" stroke="rgba(20,22,28,0.10)" stroke-width="0.8"/>
   <rect x="710" y="280" width="92.32500000000002" height="12" rx="2" fill="#f4f2ec"/>
   <text x="756.1625" y="289" fill="#8b909c" font-size="7" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.14em">READS · NO WALLET</text>
-  <path d="M 170,151.0 H 266" fill="none" stroke="#a8253c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#architecture-arrow-link)"/>
+  <path d="M 170,151.0 H 266" fill="none" stroke="#a8253c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#arrow-link)"/>
   <rect x="191.5" y="144.0" width="53.0" height="14" fill="#f4f2ec"/>
   <text x="218.0" y="154.0" fill="#a8253c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">WITNESS</text>
-  <path d="M 406,151.0 H 512" fill="none" stroke="#4a4f5c" stroke-width="1.2" marker-end="url(#architecture-arrow)"/>
+  <path d="M 406,151.0 H 512" fill="none" stroke="#4a4f5c" stroke-width="1.2" marker-end="url(#arrow)"/>
   <rect x="437.5" y="144.0" width="43.0" height="14" fill="#f4f2ec"/>
   <text x="459.0" y="154.0" fill="#4a4f5c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">PROOF</text>
-  <path d="M 662,151.0 H 758" fill="none" stroke="#4a4f5c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#architecture-arrow)"/>
+  <path d="M 662,151.0 H 758" fill="none" stroke="#4a4f5c" stroke-dasharray="4,3" stroke-width="1" marker-end="url(#arrow)"/>
   <rect x="686.0" y="144.0" width="48.0" height="14" fill="#f4f2ec"/>
   <text x="710.0" y="154.0" fill="#4a4f5c" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">EVENTS</text>
-  <path d="M 833.0,184 V 300" fill="none" stroke="#0d6e6e" stroke-width="1.2" marker-end="url(#architecture-arrow-accent)"/>
+  <path d="M 833.0,184 V 300" fill="none" stroke="#0d6e6e" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
   <rect x="796.5" y="235.0" width="73.0" height="14" fill="#f4f2ec"/>
   <text x="833.0" y="245.0" fill="#0d6e6e" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.06em">GATED READS</text>
-  <rect x="20" y="118" width="150" height="66" rx="6" fill="#0d6e6e" fill-opacity="0.08" stroke="#0d6e6e" stroke-width="1.2"/>
+  <rect x="20" y="118" width="150" height="66" rx="6" fill="rgba(13,110,110,0.08)" stroke="#0d6e6e" stroke-width="1.2"/>
   <text x="32" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Employee device</text>
   <text x="32" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">salary = witness</text>
   <text x="32" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">never leaves*</text>
@@ -45,7 +45,7 @@
   <text x="278" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">Proof server</text>
   <text x="278" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">builds the proof</text>
   <text x="278" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">we operate it</text>
-  <rect x="512" y="118" width="150" height="66" rx="6" fill="#0d6e6e" fill-opacity="0.08" stroke="#0d6e6e" stroke-width="1.2"/>
+  <rect x="512" y="118" width="150" height="66" rx="6" fill="rgba(13,110,110,0.08)" stroke="#0d6e6e" stroke-width="1.2"/>
   <text x="524" y="140" fill="#14161c" font-size="12" font-weight="600" font-family="'Geist',system-ui,sans-serif">gotit.compact</text>
   <text x="524" y="156" fill="#4a4f5c" font-size="9" font-family="'Geist Mono',monospace">8 circuits</text>
   <text x="524" y="170" fill="#8b909c" font-size="9" font-family="'Geist Mono',monospace">counts, not people</text>

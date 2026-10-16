@@ -54,6 +54,9 @@ down during a live demo.
 
 # Video shot list
 
+> **Recording? Use [VIDEO-SCRIPT.md](VIDEO-SCRIPT.md) instead.** That is the word-for-word version
+> with a pre-record checklist and recovery lines. This section is the beat sheet underneath it.
+
 Target **3 minutes**. The order matters: lead with the artifact a judge cares about, then prove
 it is real, then prove the privacy property. Do not spend time on setup.
 
