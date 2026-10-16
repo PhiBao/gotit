@@ -14,9 +14,10 @@
     "lint": "pnpm -r lint",
     "contract:compile": "pnpm --filter @gotit/contract compile",
     "contract:build": "pnpm --filter @gotit/contract build",
-    "check:submission": "node scripts/check-submission.mjs AKINDO_SUBMISSION_DRAFT.md",
+    "check:submission": "node scripts/check-submission.mjs && node scripts/unwrap-submission.mjs --check",
     "dev:all": "concurrently -n web,issuer \"pnpm --filter @gotit/web dev\" \"pnpm --filter @gotit/issuer dev\"",
-    "check:artifacts": "node scripts/check-artifacts.mjs"
+    "check:artifacts": "node scripts/check-artifacts.mjs",
+    "unwrap:submission": "node scripts/unwrap-submission.mjs"
   },
   "packageManager": "pnpm@9.12.0",
   "engines": {
