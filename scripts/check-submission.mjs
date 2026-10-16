@@ -213,11 +213,25 @@ for (const c of cats) {
 
 for (const [field, hint] of [
   ["deliverable_url", "a judge clicking a dead URL is the cheapest way to lose points"],
-  ["demo_video", "46 of 159 Wave 1 submissions had one; judges asked for audio commentary"],
   ["deck_url", "22 of 159 had one"],
   ["contract_address", "the judges' automated review looks for a documented deployed address"],
 ]) {
   if (!fm[field]) err(`frontmatter: ${field} is required — ${hint}`);
+}
+
+// demo_video is a WARNING, not an error. The evidence for wanting one is real —
+// 46 of 159 Wave 1 submissions had one and judges asked for audio commentary — but
+// a link to a video that does not exist yet is worse than no link, and a stale one
+// is worse still: we shipped Wave 1's video in the Wave 2 draft for a while and it
+// looked finished. So this states the case and leaves the call to the author.
+if (!fm.demo_video || /^\s*$/.test(String(fm.demo_video))) {
+  warn(
+    "no demo_video — 46 of 159 Wave 1 submissions had one and judges asked for audio " +
+      "commentary. Add it when the recording exists; do not paste a placeholder or a " +
+      "previous wave's link.",
+  );
+} else if (!/^https?:\/\//.test(String(fm.demo_video))) {
+  warn(`demo_video "${fm.demo_video}" is not a URL`);
 }
 
 if (fm.contract_address && !/^[0-9a-f]{64}$/i.test(String(fm.contract_address))) {
