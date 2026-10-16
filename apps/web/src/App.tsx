@@ -310,12 +310,11 @@ function GotItApp() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             title="Back to the start"
-            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}
           >
             <div className="brand-mark">◐</div>
             <div>
               <div style={{ lineHeight: 1, fontSize: 16 }}>GotIt</div>
-              <div className="small mono" style={{ color: "var(--muted)", marginTop: 2 }}>provable · unlinkable · suppressible</div>
+              <div className="small mono brand-tagline" style={{ color: "var(--muted)", marginTop: 2 }}>provable · unlinkable · suppressible</div>
             </div>
           </button>
           <div className="row">
@@ -535,7 +534,7 @@ function GotItApp() {
             </div>
             <div className="sep" />
             <div className="small muted" style={{ lineHeight: 1.5, marginBottom: 2 }}>
-              {live ? "Live ledger state" : "Sample dataset \u2014 not chain data"}
+              {live ? "Live ledger state" : "Sample dataset — not chain data"}
             </div>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
@@ -559,7 +558,7 @@ function GotItApp() {
               ) : (
                 <>
                   <strong>These figures are sample data.</strong> The figures above are a local
-                  illustrative dataset, not chain state \u2014 the contract is live on Midnight
+                  illustrative dataset, not chain state — the contract is live on Midnight
                   Preprod, but nobody has run a reporting period on it yet. A proof is generated on
                   the employee's own device, so a real salary never reaches us or the ledger.
                 </>

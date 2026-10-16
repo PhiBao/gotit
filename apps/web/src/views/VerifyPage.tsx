@@ -193,7 +193,7 @@ export default function VerifyPage() {
             {state.source && !state.ok && state.source === "v1" && (
               <div className="small" style={{ color: "#fcd34d", marginBottom: 8, lineHeight: 1.5 }}>
                 This deployment has no v2 ledger configured, so the check ran against the Wave 1
-                contract. A fingerprint from an Art. 9 report will not match it \u2014 those
+                contract. A fingerprint from an Art. 9 report will not match it — those
                 reports are built from different dimensions.
               </div>
             )}
@@ -212,7 +212,7 @@ export default function VerifyPage() {
         <h2 style={{ marginTop: 0, fontSize: 17 }}>Which report is this?</h2>
         <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
           An Art. 9 report covers a specific list of job categories, and its fingerprint covers
-          that list \u2014 the ledger stores each category as a hash, so the chain cannot tell us
+          that list — the ledger stores each category as a hash, so the chain cannot tell us
           what a group is called. The default list is <code>engineering, sales, operations,
           management</code>. If your report used different categories, the check will report a
           mismatch that means only the lists differ.

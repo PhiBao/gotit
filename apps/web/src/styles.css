@@ -28,7 +28,17 @@ h1,h2,h3{font-family:Fraunces,serif;letter-spacing:-.02em}
 .container{max-width:1120px;margin:0 auto;padding:0 20px}
 .topbar{position:sticky;top:0;z-index:20;background:rgba(10,10,11,.8);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .topbar-inner{display:flex;align-items:center;justify-content:space-between;height:56px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+/* The brand is a <button> so it can be a home link. A button does not inherit
+   colour or font — it takes the UA's default buttontext (black), which on this
+   dark header made "GotIt" invisible against the background. Everything a button
+   resets has to be reset back. */
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;
+  color:inherit;font:inherit;font-weight:700;background:none;border:0;padding:0;
+  cursor:pointer;text-align:left}
+.brand:hover .brand-mark{filter:brightness(1.08)}
+.brand:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:10px}
+.brand-tagline{white-space:nowrap}
+@media (max-width:1180px){.brand-tagline{display:none}}
 .brand-mark{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#0a0a0b;font-weight:800}
 .badge{font-size:12px;border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);background:var(--panel)}
 .badge strong{color:var(--text)}
