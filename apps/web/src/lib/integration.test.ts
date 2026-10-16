@@ -312,3 +312,102 @@ describe("suppression reasons are distinguishable facts", () => {
     });
   }
 });
+
+describe("a below-k group is WITHHELD, not empty", () => {
+  /**
+   * The distinction that matters to a reader, and the one the report got wrong.
+   *
+   * Published figures come through the contract's gated circuit, which returns
+   * zeros for any group below the anonymity threshold — that is the gate working.
+   * But the engine was reading the group SIZE from those same zeroed histograms,
+   * so a group of one person and an unconfigured group were indistinguishable and
+   * both rendered as `no-data · 0 participants`.
+   *
+   * Five live submissions holding one person each read as an empty contract for
+   * exactly this reason. "We withheld this" and "nobody is in this" are different
+   * statements about coverage, and a compliance report has to make the right one.
+   */
+  it("says below-k when raw state shows a small group, even though gated figures are zero", () => {
+    const gated = new Array(BUCKET_COUNT).fill(0); // what the gate returns
+    const r = buildReport(
+      [
+        {
+          category: "engineering · Base salary",
+          // Figures: zeroed by the gate.
+          reference: { total: [...gated], base: [...gated], variable: [...gated] },
+          comparison: { total: [...gated], base: [...gated], variable: [...gated] },
+          // Sizes: the real headcount, from raw state.
+          referenceSize: 1,
+          comparisonSize: 1,
+          k: 5,
+        },
+      ],
+      { period: "p", generatedAt: "g", k: 5 },
+    );
+
+    expect(r.rows).toHaveLength(0);
+    expect(r.suppressed).toHaveLength(1);
+    expect(r.suppressed[0].reason).toBe("below-k-anonymity-threshold");
+    // And the real headcount, not zero — the reader needs to know how far from
+    // the threshold the category is.
+    expect(r.suppressed[0].size).toBe(2);
+  });
+
+  it("still says no-data when the group is genuinely empty", () => {
+    const zeros = new Array(BUCKET_COUNT).fill(0);
+    const r = buildReport(
+      [
+        {
+          category: "sales · Base salary",
+          reference: { total: [...zeros], base: [...zeros], variable: [...zeros] },
+          comparison: { total: [...zeros], base: [...zeros], variable: [...zeros] },
+          referenceSize: 0,
+          comparisonSize: 0,
+          k: 5,
+        },
+      ],
+      { period: "p", generatedAt: "g", k: 5 },
+    );
+    expect(r.suppressed[0].reason).toBe("no-data");
+  });
+
+  it("says one-sided when only one group has people", () => {
+    const zeros = new Array(BUCKET_COUNT).fill(0);
+    const r = buildReport(
+      [
+        {
+          category: "engineering · Base salary",
+          reference: { total: [...zeros], base: [...zeros], variable: [...zeros] },
+          comparison: { total: [...zeros], base: [...zeros], variable: [...zeros] },
+          referenceSize: 5,
+          comparisonSize: 0,
+          k: 5,
+        },
+      ],
+      { period: "p", generatedAt: "g", k: 5 },
+    );
+    // Five on one side is not a comparison, and publishing it would reveal the
+    // other side by subtraction.
+    expect(r.suppressed[0].reason).toBe("no-comparison-group");
+    expect(r.suppressed[0].size).toBe(5);
+  });
+
+  it("falls back to histogram totals when no raw sizes are supplied", () => {
+    // A caller with only histograms still works, which is correct for a group
+    // above k where the gated figures equal the truth.
+    const h = new Array(BUCKET_COUNT).fill(0);
+    h[3] = 6;
+    const r = buildReport(
+      [
+        {
+          category: "engineering · Base salary",
+          reference: { total: [...h], base: [...h], variable: new Array(BUCKET_COUNT).fill(0) },
+          comparison: { total: [...h], base: [...h], variable: new Array(BUCKET_COUNT).fill(0) },
+        },
+      ],
+      { period: "p", generatedAt: "g", k: 5 },
+    );
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].reference.size).toBe(6);
+  });
+});

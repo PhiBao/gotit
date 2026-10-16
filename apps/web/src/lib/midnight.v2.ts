@@ -23,7 +23,10 @@ import { BUCKET_COUNT } from "@gotit/shared";
 import { extractContractAddress } from "./deployResult";
 import { makeLocalGatedReader } from "./localGatedReader";
 import { asContractAddress } from "@midnight-ntwrk/midnight-js-types";
-import { Contract as GotItV2Contract } from "@gotit/contract/managed/gotit/contract";
+import {
+  Contract as GotItV2Contract,
+  ledger as decodeLedger,
+} from "@gotit/contract/managed/gotit/contract";
 import { witnesses, createPrivateState, type GotItPrivateState } from "@gotit/contract/witnesses-v2";
 import { issuerCommitment2 } from "@gotit/shared/hash";
 import { DEFAULT_K } from "@gotit/shared/paygap";
@@ -258,8 +261,21 @@ export async function connectGatedReader(
 }
 
 export function decodeV2State(state: any) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (GotItV2Contract as any).ledger ? (GotItV2Contract as any).ledger(state.data ?? state) : null;
+  // `ledger` is a MODULE-LEVEL export of the generated contract, not a static
+  // method on the Contract class — `Contract.ledger` is `undefined`. This used to
+  // call `GotItV2Contract.ledger(...)` guarded by a truthiness check, so it
+  // silently returned null every single time.
+  //
+  // What that broke: every raw-state read. `readGroupSizes` and
+  // `readGroupHistograms` both decode through here, so every configured group read
+  // as zero participants — which the report rendered as `no-data · 0 participants`
+  // for all 24 groups. It made five real on-chain submissions look like an empty
+  // contract, and it defeated the label finder and the inventory, both of which
+  // need the raw group counts.
+  //
+  // Throwing would have surfaced this immediately; returning null hid it behind a
+  // plausible empty state.
+  return decodeLedger(state?.data ?? state);
 }
 
 export { setNetworkId, DEFAULT_K };

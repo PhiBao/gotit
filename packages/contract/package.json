@@ -35,7 +35,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "compile:v1": "compact compile src/candor.compact src/managed/candor",
-    "verify:chain": "tsx src/chainRead.ts"
+    "verify:chain": "tsx src/chainRead.ts",
+    "diagnose:contract": "tsx src/diagnoseContract.ts"
   },
   "dependencies": {
     "@gotit/shared": "workspace:*",

@@ -420,6 +420,26 @@ export type CategoryInput = {
   reference: GroupHistograms;
   comparison: GroupHistograms;
   k?: number;
+  /**
+   * Participants per side, from RAW ledger state.
+   *
+   * These exist because the published histograms cannot supply them. A group
+   * below the anonymity threshold reads as all zeros through the gated circuit —
+   * that is the whole point of the gate — so `groupSize(reference.total)` is 0 for
+   * exactly the groups whose size the report needs in order to say "withheld,
+   * because 3 people" rather than "no data".
+   *
+   * Conflating those two was a real bug: five live submissions whose groups held
+   * one person each rendered as `no-data · 0 participants` for all 24 groups,
+   * because zeroed histograms made every group indistinguishable from an empty
+   * one. The distinction matters to a reader — "we withheld this" and "nobody is
+   * in this" are different statements about coverage.
+   *
+   * Optional so a caller that genuinely has no raw view still works; the engine
+   * falls back to the histogram totals, which is correct for groups above k.
+   */
+  referenceSize?: number;
+  comparisonSize?: number;
 };
 
 const PERCENTILE_NOTE =
@@ -453,8 +473,10 @@ export function buildReport(
   let partial = 0;
 
   for (const c of categories) {
-    const refTotal = groupSize(c.reference.total);
-    const cmpTotal = groupSize(c.comparison.total);
+    // Prefer the raw headcount. The histograms are gated, so for a below-k group
+    // they are zero and would report the group as empty rather than withheld.
+    const refTotal = c.referenceSize ?? groupSize(c.reference.total);
+    const cmpTotal = c.comparisonSize ?? groupSize(c.comparison.total);
     participating += 1;
     total += refTotal + cmpTotal;
 

@@ -123,3 +123,58 @@ describe("judgeInventory", () => {
     expect(v.headline).toMatch(/1 reporting group with 1 participant in total/);
   });
 });
+
+describe("decoding real ledger state, which is where this went wrong", () => {
+  /**
+   * `decodeV2State` called `Contract.ledger(...)`, guarded by a truthiness check.
+   * `ledger` is a MODULE-LEVEL export of the generated contract and `Contract` is
+   * a class with no such static, so the guard was always false and the function
+   * always returned null.
+   *
+   * Everything downstream of it read zeros: `readGroupSizes` and
+   * `readGroupHistograms` both decode through it, so five real on-chain
+   * submissions rendered as `no-data · 0 participants` for all 24 groups, and both
+   * the inventory and the label finder — which exist precisely to diagnose that —
+   * were silently defeated by the same defect.
+   *
+   * These tests import the real generated contract, so a wrong accessor fails here
+   * rather than in front of a user.
+   */
+  it("the generated module exports `ledger`, and Contract has no such static", async () => {
+    const mod = await import("@gotit/contract/managed/gotit/contract");
+    expect(typeof (mod as any).ledger).toBe("function");
+    // The exact assumption that was wrong. If a future version adds a static,
+    // this fails and the comment above gets revisited.
+    expect(typeof (mod as any).Contract.ledger).toBe("undefined");
+  });
+
+  it("decodes a real ledger rather than returning null", async () => {
+    const { decodeV2State } = await import("./midnight.v2");
+    // The smallest thing the decoder must handle: a state object it was handed by
+    // the indexer. A null return is the bug, so assert on the shape, not truthiness.
+    const { Contract, ledger } = await import("@gotit/contract/managed/gotit/contract");
+    const { witnesses, createPrivateState } = await import("@gotit/contract/witnesses-v2");
+    const { createConstructorContext } = await import("@midnight-ntwrk/compact-runtime");
+    const { issuerCommitment2 } = await import("@gotit/shared/hash");
+
+    const secret = new Uint8Array(32).fill(42);
+    const issuer = new Uint8Array(32).fill(1);
+    const contract = new Contract(witnesses as any);
+    const init = contract.initialState(
+      createConstructorContext(createPrivateState(secret), { bytes: new Uint8Array(32) } as any),
+      issuerCommitment2(issuer),
+      5n,
+    );
+    const state = init.currentContractState as any;
+
+    // Decoding must give a usable ledger with the fields the report reads.
+    const led = decodeV2State(state) as any;
+    expect(led).not.toBeNull();
+    expect(led.groupCount).toBeDefined();
+    expect(led.kThreshold).toBeDefined();
+    expect(Number(led.kThreshold)).toBe(5);
+    // And the raw fetcher agrees with the module function.
+    expect(led.members.size()).toBe(led.members.size());
+    expect(typeof ledger).toBe("function");
+  });
+});

@@ -170,10 +170,17 @@ function toCategories(groups: ReportingGroupKey[], reading: ChainGroupReading): 
         ? { total: [...h], base: [...h], variable: new Array(BUCKET_COUNT).fill(0) }
         : { total: [...h], base: new Array(BUCKET_COUNT).fill(0), variable: [...h] };
 
+    // Headcounts from raw state. The histograms above are GATED, so a below-k
+    // group is all zeros through them — and the engine needs the real size to
+    // report "withheld" rather than "no data".
+    const sizeOf = (g?: ReportingGroupKey): number => (g ? (reading.sizes.get(gk(g)) ?? 0) : 0);
+
     out.push({
       category: `${categoryId} · ${COMPONENT_LABEL[component]}`,
       reference: shape(womenH),
       comparison: shape(menH),
+      referenceSize: sizeOf(slot.women),
+      comparisonSize: sizeOf(slot.men),
       // The circuit threshold is authoritative. Passing the same k here keeps the
       // report engine's own two-sided suppression aligned with the chain gate, so
       // a group that the chain would refuse to publish is never rendered.
