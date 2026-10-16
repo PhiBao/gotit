@@ -1,140 +1,284 @@
 # Changelog
 
-What's new in GotIt, organized by Buildathon wave. Written for everyone — judges,
-contributors, and future team members.
+A wave is a build period. Wave 1 ran 27 Aug – 16 Sep 2026 and scored zero of 159 submissions;
+Wave 2 runs 29 Sep – 19 Oct 2026. The [Wave 1 post-mortem](docs/WAVE1-POSTMORTEM.md) explains the
+zero, because the next wave's plan only makes sense next to it.
 
-> **Renamed from *Candor* to *GotIt* for Wave 2.** A different Wave 1 project was also
-> called "Candor" (a proof-of-reserves product), so neither was findable. The old name
-> survives in git history, in the deployed contract's `candor:*` hash domain strings
-> (frozen — see README), and in the Fly app names (renaming an app destroys its URLs).
+Format follows [Keep a Changelog](https://keepachangelog.com/). Entries are grouped by what
+changed for a reader of the product, not by commit.
 
-## Wave 2 · v0.4.0 — A new name, a new buyer, a real deliverable (2026-09-30)
+---
 
-- **Renamed Candor → GotIt.** A different Wave 1 project was also called "Candor", so neither
-  was findable. Package scope, user-facing copy and storage keys renamed. The deployed
-  contract's `candor:*` hash domain strings are **frozen** — they are inputs to contract
-  `e7cf6ffc…dd53d`, so changing them would reject every prior member as "not a member".
-- **The indexer moved under us and we caught it before the judges did.** The upstream we had
-  been proxying (`blockfrost.lw.iog.io`) now answers `410 Gone — Midnight endpoints have been
-  removed from this proxy`. Moved to the official `indexer.preprod.midnight.network` API v4 and
-  verified end to end: the deployed contract reads back epoch 1 with 2 real submissions, no
-  wallet required. If we had not restored the environment and clicked our own link, the app
-  would have silently shown sample data while claiming to be live.
-- **Restored the hosted environment** (all three Fly apps, 1 machine each) so the deliverable
-  URL resolves for the first time since Wave 1 judging closed.
+## [Wave 3] — milestone, not started
 
-- **Repositioned to a named buyer with a deadline.** We were pitching "private comp data to
-  crypto workers". Now: the Head of Total Rewards at a 150–2,500 person European company
-  who must publish gender pay gap statistics by **7 June 2027** under Directive (EU) 2023/970,
-  where an unjustified 5% gap triggers a joint pay assessment and the burden of proof shifts
-  to the employer.
-- **Built the Art. 9 report engine** (`packages/shared/src/paygap.ts`). Pure functions, no
-  I/O, so a third party can re-run them against on-chain state and get byte-identical output.
-  Emits the statistics the Directive actually names: mean and median gap, base versus
-  variable pay, proportion receiving variable pay, and quartile distribution.
-- **Means and gaps are intervals, not point estimates.** Bucketed data only bounds the truth.
-  Quartiles and counts are exact. The report says so on its face.
-- **The 5% materiality flag uses the bound nearest zero, not the midpoint.** A range of
-  [−33%, +50%] has midpoint +8.3%, but its sign is not even provable — flagging it would
-  trigger a joint pay assessment on a category that may be perfectly compliant.
-- **Suppression is enforced on both sides of every comparison.** Publishing one side of a
-  pay gap reveals the other by subtraction, so a one-sided row is a disclosure just as much
-  as a small cell.
-- **Shipped the compliance surface.** A report page and a public verification page, both
-  reading live on-chain state. Every report carries a fingerprint over the exact bucket counts it
-  was built from, and anyone can paste that fingerprint into the verify page to check the report
-  against the chain — no wallet, no account. Neither page substitutes sample data for a failed
-  read; they say so instead. On the current chain (2 submissions, 1 per group) the report
-  correctly publishes nothing and states that nothing is publishable.
-- **14 tests on the report data layer**, including that a fingerprint is order-independent, that
-  it changes when any published count changes, and that the report can never emit a comparison
-  the ledger does not support.
-- **A pre-submission gate** (`pnpm check:submission`) that fails on empty or headings-only
-  sections, a jargon tagline, too few tags, and missing links or community fields. It
-  reports 21 errors against the real Wave 1 submission.
-- **Published the Wave 1 post-mortem** (`docs/WAVE1-POSTMORTEM.md`), including the recovered
-  judge data and the three self-inflicted defects that cost us the round.
+**Theme: from a report you can check, to infrastructure that makes pay claims checkable.**
 
-### Fixed on the way
+Wave 2 proved the hard part — that an employer can publish a defensible Art. 9 report from a
+ledger that holds counts and nothing else. Wave 3 is about whether anyone can *adopt* it, and
+whether the artifact is worth more than one filing.
 
-- `deploy/issuer.Dockerfile` still filtered the old `@candor/issuer` scope, so an image rebuild
-  installed nothing and the issuer image failed its health check with an opaque
-  "request canceled". The brand rename is now consistent across deploy files.
+The two things standing between the current build and a company running it for real are the ones
+we named in the Wave 2 limitations: **nobody wants to be the first person in their company to
+submit**, and **nothing links a submitted figure to a figure actually paid**. Both are adoption
+problems, not cryptography problems, and both have a plausible answer.
 
-## Wave 1 · v0.3.1 — Hosting paused after judging (2026-09-30)
+### The adoption problem, and the bet
 
-- **Zero compute cost.** The three hosted apps (web, issuer, proof server) were scaled to
-  0 machines once Wave 1 judging closed. The public URLs return 503 until they are brought
-  back; nothing else changed.
-- **Nothing was lost.** The contract on Midnight Preprod
-  (`e7cf6ffc…dd53d`) and all contributions made during the wave are untouched — only the
-  servers that display them are off. Resume commands: `docs/DEPLOY.md` §8.
-- **Pitch deck shipped:** `docs/GotIt-Pitch-Deck.pptx` (renamed to GotIt branding in Wave 2).
+| | Wave 2 | Wave 3 |
+|---|---|---|
+| Where figures come from | Employees type them | Imported from the payroll export they already produce, with employees confirming |
+| Can an employer invent employees? | Yes — undetectable | No — a committed row must exist |
+| Can a figure be altered silently? | Yes | No — changes are visible against the commitment |
+| Who sees an individual salary | Nobody | The payroll system that already has it. Still nobody else. |
 
-## Wave 1 · v0.3.0 — Live on Midnight Preprod (2026-08-28)
+The bet is that **confirmation is a different act from entry**, and that employees will confirm a
+figure their employer already computed in a way they will not hand-type one. That is the whole
+design of the connector below: the employer commits, the employee confirms, and the ledger records
+the confirmation rather than the number.
 
-### 🎉 Headline
+It does not fully close the gap between the two models. A committed row still cannot be proven to
+correspond to a real person's real pay — only that the employer cannot change it afterwards
+without it being visible. The Wave 2 limitation section says the same thing, and Wave 3 narrows it
+rather than pretending to eliminate it.
 
-**Candor is live.** The full journey now runs on Midnight's public Preprod network with a
-real wallet: deploy → verify → contribute anonymously → see your percentile. Every step
-below shipped and was tested end-to-end with real transactions.
+### Planned
 
-### New — what you can do now
+**A payroll connector, and the attestation that comes with it.**
 
-- **Contribute for real.** Connect your Lace wallet, verify your work email, and submit a
-  bucketed salary to a live on-chain contract. Your proof is generated on your own device.
-- **Deploy & operate from the browser.** A new built-in Issuer Console lets the operator
-  deploy the contract, enroll verified members, and start a new epoch — no command line.
-- **Pick up where you left off.** Your secret key and session persist across page reloads;
-  the app shows clear connection status (connected wallet, network, contract).
-- **One-command local run.** `pnpm dev:all` starts the app and the verification service
-  together; a full deployment walkthrough is in `docs/DEPLOY.md`.
+- Read-only importer for the exports companies already produce — Personio and DATEV first, then a
+  documented CSV shape so anything else can be mapped.
+- The importer runs locally and commits `hash(employer_salt ‖ row)` per payroll row before
+  enrolment opens. The employer cannot see the hash preimage, so the commitment binds the row
+  without publishing it.
+- Enrolment is gated on an unclaimed committed row matching the employee's record, so a group
+  cannot be padded with people who do not exist.
+- Contributions are recorded as *confirmed*, *corrected* or *declined*, and the report states the
+  mix. A report built entirely from unconfirmed rows says so.
+- **Why this is the priority:** it is the direct answer to the sharpest critique this space has
+  received — that a standalone app cannot win, and the product has to become a plugin for the
+  systems companies already run.
 
-### Fixed — trust & reliability
+**Trustless membership.**
 
-- **One contribution per person per epoch is now truly enforced** — previously a member
-  could theoretically bypass the limit; the rule is now airtight and resets each epoch.
-- **Only the issuer can add members** — a bug that would have allowed anyone to mint
-  fake memberships was closed; minting now requires the issuer's cryptographic approval.
-- **Smoother wallet connection** — Lace is now detected reliably (including when the
-  extension loads late), with clear status feedback at every step and simple recovery
-  when a wallet is missing.
-- **Fewer dead ends.** Fixed a series of browser-environment issues (missing browser
-  compatibility shims, stale cached data, misconfigured endpoints) that could cause a
-  blank page or a failed transaction; the app now guides you past each one.
-- **Clearer errors.** When something fails (for example, not enough tDUST), the message
-  now tells you what to do instead of showing a raw technical error.
+- Replace the trusted issuer with a Merkle membership proof, so no company learns who its
+  employees are even to verify them. `HistoricMerkleTree` in the ledger, membership witness in the
+  circuit, and the issuer service becomes an enrolment helper rather than an authority.
+- This removes the second of the two residual trust assumptions named in the README. The first —
+  the proof server seeing the witness — is addressed separately below.
 
-### For evaluators
+**Proving without a server in the trust path.**
 
-- Compiled contract artifacts are committed — run the demo without installing Midnight's compiler.
-- `docs/DEPLOY.md` covers the full Preprod path, including generating tDUST from tNIGHT.
+- Evaluate in-browser proving against real circuit sizes and measure it. The circuits are small
+  enough that this may already be practical, and it would remove the last party that sees a
+  witness.
+- If it is not practical, the alternative is a proving service with a published retention policy
+  and a reproducible build, stated as an explicit trade rather than an unexamined default.
 
-## Wave 1 · v0.2.0 — Hardened foundations (2026-08-27)
+**Period-over-period comparison.**
 
-### New
+- The same ledger answers a question a single filing cannot: did the gap close after an
+  intervention? Reports become comparable across periods, with the comparison published alongside
+  the numbers.
+- This is the beginning of the durable position. A single compliant PDF is a commodity; a series
+  of mutually consistent, independently reproducible filings is infrastructure.
 
-- **A 13-test verification suite** that exercises the real contract logic (the same
-  program the chain runs) without needing a network — covering the happy path, and
-  proving that the system rejects double submissions, unverified members, and invalid inputs.
-- **A privacy regression test** that watches the public data after every contribution and
-  confirms it never reveals an individual salary — only a bucket index.
+**A filing pack.**
+
+- One download containing the report, the fingerprint, the reproduction command, the coverage
+  statement and the disclosure notes — everything a regulator or works council needs, in the shape
+  they ask for rather than the shape we render.
+- National authority formats do not exist yet, so this starts as a documented pack and becomes a
+  template when a pilot needs one.
+
+**Operational maturity.**
+
+- `k` configurable per deployment and stated per report, rather than fixed at 5. Different
+  jurisdictions will want different numbers and the report already prints what was applied.
+- Mainnet readiness: the Foundation's deployment review, a funded production wallet, and the
+  security checklist.
+- One named pilot producing a real report on real data, with a works council reading it.
+
+### Explicitly not planned
+
+Multi-entity or group consolidation, mobile apps, and a hosted multi-tenant service. All three
+are plausible businesses and none of them is the next thing that makes the product adoptable.
+
+---
+
+## [Wave 2] — 2026-10-19
+
+**Theme: a compliance product with a named buyer, instead of a community with a good idea.**
+
+Wave 1 built a worker-facing salary benchmark and scored zero. It was not the build that failed —
+it was the positioning, the pitch and the submission. This wave is a different product aimed at the
+Head of Total Rewards at a 150–2,500 person EU company, who must file by 7 June 2027.
+
+### Added
+
+**A second Compact ledger, `gotit.compact`.** Eight circuits and 26 tests, compiled with
+Compact 0.31.1. Wave 1's
+`candor.compact` keyed its histogram on a `(family:level:region)` cut, which cannot express the
+Directive's "category of worker", a gender split, or base versus variable pay. The new ledger adds
+all three dimensions, an anonymity threshold fixed at deployment, and a per-group counter so the
+gate is a single lookup.
+
+**Disclosure control enforced inside the read circuit.** `getGroupHistogram` returns zero for any
+group below the threshold. Seven of the v2 ledger's 26 tests exist only to hold that property down.
+Suppression implemented in a report generator is a convention — it holds until someone writes a
+different reader. Here the employer who paid for the deployment gets zeros too.
+
+**`getGroupHistogram`, a whole-group read.** The gate is evaluated per group, not per pay band, so
+returning all ten bands in one call enforces the same rule at a tenth of the cost. This is a
+structural fix rather than a performance one: an expensive read path is one people route around,
+which is exactly how the gate came to be documented as enforced while the app read raw state.
+
+**The Art. 9 report engine** (`packages/shared/src/paygap.ts`). Forty tests. Means and gaps as
+intervals rather than point estimates, because the data is bucketed and the exact figures are not
+recoverable. Materiality judged on the bound nearest zero, not the midpoint: a range of −33% to
++50% has a midpoint of +8.3%, and flagging that would trigger a joint pay assessment on a category
+that may be perfectly compliant. Pure — no I/O — so a third party can re-run it and get
+byte-identical output.
+
+**Art. 9(1)(e) published as a proof of non-derivability.** The proportion receiving variable pay
+cannot be computed as a point estimate here, because the ledger holds base-pay and variable-pay
+submissions in separate unlinkable cells, so their intersection is unknown. The report publishes
+the interval the model does bound, names the two privacy regressions that would tighten it, and
+explains why both are refused. Every other tool in this space prints a number.
+
+**A report page and a public verification page.** Both readable with no wallet and no account. The
+report states the contract it read, the category labels it searched for, the threshold in force,
+and — when it has no rows — which of three different causes applies. The verification page takes a
+fingerprint, answers match or mismatch against live chain state, and states what that does and does
+not prove.
+
+**Independent reproduction as a command.** `pnpm verify:chain --address … --categories …` reads the
+ledger through the public indexer and prints the report. No wallet, no issuer key, no proof server.
+
+**A contract diagnostic.** `diagnose:contract` reports counters, whether the group map can be
+enumerated at all, and which candidate category labels hash to groups that exist. It exists because
+a group is keyed by `hash(label)` and the ledger cannot name what it holds — so a name mismatch is
+indistinguishable from an empty contract without it. That cost us a debugging session; it should
+not cost anyone else one.
+
+**A label finder in the report page.** `hash(label)` is one-way, so the ledger cannot say what it
+holds — but a candidate can be tested against the on-chain hashes. It runs automatically whenever
+the report is empty, which is the only moment it is needed.
+
+**An indexer failure classifier.** Decommissioned, missing token, invalid token, wrong API path,
+unreachable — each with its own remedy, stated on screen. Distinct from "nobody has run a reporting
+period yet", which is a different fact and was previously indistinguishable.
+
+**278 tests**, including 45 against the generated contracts and an integration suite that drives
+the whole chain-to-report path.
+
+**Generated diagrams.** An architecture diagram and a disclosure matrix, emitted from scripts in
+`docs/diagrams/` so they can be regenerated rather than redrawn, and tested against GitHub's dark
+theme.
+
+### Changed
+
+- **Renamed from Candor to GotIt.** The v1 ledger keeps its `candor:*` hash domains because they
+  are inputs to live on-chain state; v2 uses `gotit:*`. A v1 leaf deliberately does not validate
+  against v2.
+- **The landing page sells compliance, not a benchmark.** It was still pitching anonymous salary
+  comparison while the deck and submission argued for a compliance buyer.
+- **Reads are split deliberately.** Published figures come through the gated circuit; raw ledger
+  state is used only to count what exists and report coverage. An assertion re-checks the finished
+  report and throws rather than publish a row below the threshold.
+- **The wallet connection is narrated.** A wallet that accepts a request and never answers looks
+  exactly like a broken app, so the connection reports its phase and escalates its guidance.
+- **The indexer is never taken from the wallet.** A browser extension should not choose which
+  indexer a compliance report reads, and an out-of-date wallet holds an out-of-date endpoint.
+- **Category labels are validated at 32 bytes.** Not characters — a 17-character accented label is
+  34 bytes and would otherwise fail inside the prover.
 
 ### Fixed
 
-- The project is licensed **Apache-2.0** (per Buildathon requirements) with a clean,
-  reviewable commit history and an honest README status table.
+- **Art. 9(1)(b) and 9(1)(d) were unreachable.** `toCategories` built a variable-pay row with
+  `total: zeros`, and the engine reads `total` for both the group size and the anonymity gate — so
+  every variable-pay row was suppressed as "no data". The headline claim of the wave was
+  unshippable, and 38 tests passed throughout because they fed the engine hand-built inputs.
+- **Art. 9(1)(e) reported a fabricated 0%.** The share was computed as
+  `groupSize(total) − groupSize(base)`, which is zero in both of the app's shapes.
+- **Five live submissions read as an empty contract.** Two bugs. `decodeV2State` called
+  `Contract.ledger(...)` behind a truthiness check — `ledger` is a module-level export and the
+  class has no such static, so it returned `null` every time and every raw-state read produced
+  empty maps. And the engine read group *sizes* from the gated figures, which correctly return zero
+  below the threshold, so a group of one person and a group that does not exist were
+  indistinguishable.
+- **The web tests were validating a stale build.** They resolved a workspace package to its
+  committed `dist/`, so 42 of them passed against code that had already changed — which is why
+  both bugs above survived.
+- **The report page read the v1 contract address** on a v2 surface, decoding Wave 1 state with the
+  v2 decoder and blaming the chain for a configuration error.
+- **"Use v2 as the report source" wrote the v1 key.** The button did the opposite of its label.
+- **A deploy could lose the contract address**, and the app then stored the string `"undefined"`
+  as an address. Addresses are now validated on read and on write, and a missing one throws rather
+  than persisting.
+- **A stale contract bundle could not deploy.** Recompiling the contract without rebuilding
+  `dist/managed` left the bundle importing one revision while the server offered another. It failed
+  with an **empty** error message, because midnight-js runs on Effect. A build-time artefact check
+  and an Effect-failure unwrapper now both exist.
+- **The unlock loop.** The app threw when an *optional* call failed during connection, so the user
+  was told to unlock, retried, and re-triggered the same prompt — a loop no amount of unlocking
+  could break.
+- **The brand was invisible on the dark header.** Making it a `<button>` brought in the browser's
+  default button colour, which overrides inherited text.
 
-## Wave 1 · v0.1.0 — First working product (2026-08-27)
+### Security
 
-### New
+- Disclosure control is two independent layers: the circuit gate, and the report engine's
+  two-sided suppression. `assertNoSmallCellLeak` re-derives the suppression and throws rather than
+  publish a below-threshold row.
+- `groupCount` is keyed per `(category, gender, component)`, never globally, so a large team in one
+  category cannot lift a group of one in another.
+- The Blockfrost token is a Fly secret injected by the reverse proxy server-side.
+  `indexerPublicDataProvider` takes no headers, so the client could not send one even if it tried.
+- Address validation on read *and* write.
 
-- **The Candor concept, working end-to-end in demo mode**: browse salary distributions by
-  role, level, and region (15 cuts) — no wallet needed to read.
-- **Anonymous contribution flow** in four steps: verify email → describe your role → see
-  your bucket → submit. Locked cuts unlock when the community contributes — give-to-get.
-- **The percentile moment**: after contributing, you see where you stand in your cut,
-  designed to be shared.
-- **Verification service** with an append-only, privacy-preserving audit log
-  (emails are never stored in full) and rate limits per email per epoch.
-- Product documentation: specification, security model, and demo guide.
+### Removed
+
+- **The preview deployment.** Two URLs for one product is a second thing to keep alive and a second
+  URL to pick the wrong one from. The tokenless `preview` network remains documented as the
+  fallback you run locally when the indexer is unavailable.
+- **`discoverChainGroups`**, 30 lines of dead code that iterated `groupCount` looking for category
+  labels — but the map is keyed by `hash(category, gender, component)`, so it could never have
+  matched anything.
+- **The staged v2 bundle mismatch**: `VITE_CONTRACT_ADDRESS_V2`, `VITE_MIDNIGHT_NETWORK` and the
+  indexer paths were configured in `fly.web.toml` and silently dropped by the Dockerfile.
+
+### Not real, and stated as such
+
+- **Work-email verification is demo mode.** The issuer logs the code and returns it in the HTTP
+  response. There is no mail integration. The membership mechanism is real; the email step is a
+  stand-in.
+- **The sample report is generated in the browser.** Clearly labelled, never an automatic
+  fallback, and the figures must never be filed.
+- **Proving runs on a server we operate**, which receives the private inputs. It does not record
+  them, and a local run avoids it — but it is in the trust path.
+
+---
+
+## [Wave 1] — 2026-09-16 · scored 0 of 159
+
+A worker-facing anonymous salary benchmark. Live on Preprod with real transactions and a working
+privacy mechanism, and it scored zero.
+
+**Why:** an empty "Challenges" section (the only one of 159), a placeholder community profile
+("chill but cool"), one `TypeScript` tag in the most crowded category, a jargon tagline, and a
+changelog where the pitch should have been. The build was not the problem; nobody re-reads their
+own submission the way a judge does.
+
+The post-mortem is public at [`docs/WAVE1-POSTMORTEM.md`](docs/WAVE1-POSTMORTEM.md), and
+`pnpm check:submission` now fails on exactly those defects — it reports 21 errors against our real
+Wave 1 draft.
+
+Retained and still live: `candor.compact` at
+`e7cf6ffc48ebeb450813104e6a5ab3d585f7e275bcd32e5ea82eb7a8c21dd53d`, its hash domains frozen
+because they are inputs to deployed state.
+
+---
+
+[Wave 3]: https://github.com/PhiBao/gotit
+[Wave 2]: https://github.com/PhiBao/gotit
+[Wave 1]: https://github.com/PhiBao/gotit

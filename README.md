@@ -679,7 +679,8 @@ trust.
 | Local circuit execution for reads | Re-executes the circuit per group per report; cheap, but it is work the client does |
 | The gate at the group level, not per bucket | A group's total is visible to anyone who queries raw state |
 
-### Next steps
+The full milestone plan, with what each item is and why it is next, is
+[CHANGELOG.md § Wave 3](CHANGELOG.md#wave-3--milestone-not-started). In short:
 
 1. **Deploy the payroll connector.** The read-only CSV path is the smallest useful version, and it
    is what the sharpest critique of this space asks for: become a plugin for the systems companies
@@ -719,6 +720,7 @@ scripts/                  artefact check, submission lint
 
 | Document | What it covers |
 |---|---|
+| [CHANGELOG.md](CHANGELOG.md) | What shipped in each wave, and the Wave 3 milestone plan |
 | [docs/SPEC.md](docs/SPEC.md) | Product specification, reporting model, the gate, the read split |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Deployment, wallet funding, the indexer migration, troubleshooting |
 | [docs/DEMO.md](docs/DEMO.md) | Demo guide |
