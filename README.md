@@ -728,6 +728,7 @@ scripts/                  artefact check, submission lint
 | [docs/video/](docs/video/) | The generated demo video's sources — story, branding, subtitles |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security notes |
 | [docs/WAVE1-POSTMORTEM.md](docs/WAVE1-POSTMORTEM.md) | Why the previous submission scored zero |
+| [docs/WAVE2-COMPARISON.md](docs/WAVE2-COMPARISON.md) | A competitive review against Equilux, with a section-by-section score and why the gap is where it is |
 | [docs/diagrams/](docs/diagrams/) | Diagram sources — regenerable with `python3 docs/diagrams/build_*.py` |
 
 ## Licence
